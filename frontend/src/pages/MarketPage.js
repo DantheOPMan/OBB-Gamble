@@ -94,7 +94,7 @@ const MarketPage = () => {
       updatedCompetitors.forEach(competitor => {
         const relevantTransactions = transactions
           .filter(tx => tx.competitorName === competitor.name && new Date(tx.timestamp) <= new Date(currentTransaction.timestamp));
-        competitor.value = relevantTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+        competitor.value = relevantTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
       });
 
       const totalValue = updatedCompetitors.reduce((sum, competitor) => sum + competitor.value, 0) || 1;
@@ -197,7 +197,7 @@ const MarketPage = () => {
                 {marketData.status.toUpperCase()}
               </Typography>
             )}
-            {marketData.winner && (
+            {marketData.wwinner && (
               <Typography
                 variant="body1"
                 sx={{
@@ -285,7 +285,7 @@ const MarketPage = () => {
                 {betTransactions.map((transaction, index) => (
                   <ListItem key={transaction._id}>
                     <ListItemText
-                      primary={`${index + 1}. Option: ${transaction.competitorName}, Amount: ${transaction.amount} BP, Timestamp: ${new Date(transaction.timestamp).toLocaleString()}`}
+                      primary={`${index + 1}. Option: ${transaction.competitorName}, Amount: ${Math.abs(transaction.amount)} BP, Timestamp: ${new Date(transaction.timestamp).toLocaleString()}`}
                       sx={{ color: '#FFF' }}
                     />
                   </ListItem>

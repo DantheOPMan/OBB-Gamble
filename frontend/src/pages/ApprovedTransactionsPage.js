@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApprovedTransactions, getUser } from '../firebase'; // Assuming getUser fetches user details
-import { List, ListItem, ListItemText, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+import { Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 
 const ApprovedTransactionsPage = () => {
-  const [approvedTransactions, setApprovedTransactions] = useState([]);
+  const [groupedTransactions, setGroupedTransactions] = useState({});
   const [userDetails, setUserDetails] = useState({});
 
   useEffect(() => {
@@ -14,13 +14,25 @@ const ApprovedTransactionsPage = () => {
           (transaction) => !transaction.competitorName && !transaction.marketId
         );
 
-        if (filteredTransactions.length > 0) {
-          const userId = filteredTransactions[0].userId; // Assuming all transactions belong to the same user
-          const userResponse = await getUser(userId);
-          setUserDetails(userResponse);
-        }
+        // Group transactions by userId
+        const transactionsByUser = filteredTransactions.reduce((acc, transaction) => {
+          const { userId } = transaction;
+          if (!acc[userId]) acc[userId] = [];
+          acc[userId].push(transaction);
+          return acc;
+        }, {});
 
-        setApprovedTransactions(filteredTransactions);
+        setGroupedTransactions(transactionsByUser);
+
+        // Fetch user details for each userId
+        const userDetailsPromises = Object.keys(transactionsByUser).map(userId => getUser(userId));
+        const userDetailsArray = await Promise.all(userDetailsPromises);
+        const userDetailsObject = userDetailsArray.reduce((acc, userDetails) => {
+          acc[userDetails.uid] = userDetails;
+          return acc;
+        }, {});
+
+        setUserDetails(userDetailsObject);
       } catch (error) {
         console.error('Failed to fetch approved transactions', error);
       }
@@ -34,34 +46,34 @@ const ApprovedTransactionsPage = () => {
       <Typography variant="h6" sx={{ marginBottom: 2, textAlign: 'center' }}>
         Approved Transactions
       </Typography>
-      {userDetails && (
-        <div>
+      {Object.keys(groupedTransactions).map(userId => (
+        <div key={userId} style={{ marginBottom: '2rem' }}>
           <Typography variant="subtitle1" sx={{ textAlign: 'center' }}>
-            User: {userDetails.username}
+            User: {userDetails[userId]?.username}
           </Typography>
           <Typography variant="subtitle2" sx={{ textAlign: 'center' }}>
-            Discord: {userDetails.discordUsername}
+            Discord: {userDetails[userId]?.discordUsername}
           </Typography>
+          <TableContainer component={Paper} sx={{ marginTop: 4, backgroundColor: '#424242' }}>
+            <Table sx={{ backgroundColor: '#424242' }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ color: 'white' }}>Amount</TableCell>
+                  <TableCell sx={{ color: 'white' }}>Timestamp</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {groupedTransactions[userId].map((transaction) => (
+                  <TableRow key={transaction._id}>
+                    <TableCell sx={{ color: 'white' }}>{transaction.amount}</TableCell>
+                    <TableCell sx={{ color: 'white' }}>{new Date(transaction.timestamp).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </div>
-      )}
-      <TableContainer component={Paper} sx={{ marginTop: 4, backgroundColor: '#424242' }}>
-        <Table sx={{ backgroundColor: '#424242' }}>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ color: 'white' }}>Amount</TableCell>
-              <TableCell sx={{ color: 'white' }}>Timestamp</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {approvedTransactions.map((transaction) => (
-              <TableRow key={transaction._id}>
-                <TableCell sx={{ color: 'white' }}>{transaction.amount}</TableCell>
-                <TableCell sx={{ color: 'white' }}>{new Date(transaction.timestamp).toLocaleString()}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      ))}
     </div>
   );
 };

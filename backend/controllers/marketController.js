@@ -77,9 +77,9 @@ const closeMarket = async (req, res) => {
 
     const transactions = await Transaction.find({ marketId, status: 'approved' });
 
-    const totalPool = transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
+    const totalPool = transactions.reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
     const totalWinningBets = winner
-      ? transactions.filter(transaction => transaction.competitorName === winner).reduce((sum, transaction) => sum + transaction.amount, 0)
+      ? transactions.filter(transaction => transaction.competitorName === winner).reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0)
       : 0;
     const adminFee = Math.ceil(totalPool * 0.01);
     const netPool = totalPool - adminFee;
@@ -112,7 +112,7 @@ const closeMarket = async (req, res) => {
         if (transaction.competitorName === winner) {
           const user = await User.findOne({ uid: transaction.userId });
           if (user) {
-            const userPayout = (transaction.amount / totalWinningBets) * netPool;
+            const userPayout = (Math.abs(transaction.amount) / totalWinningBets) * netPool;
             user.bpBalance += userPayout;
 
             const payoutTransaction = new Transaction({
@@ -180,8 +180,7 @@ const placeBet = async (req, res) => {
     }
 
     // Deduct the amount from user balance
-    amount *=-1
-    user.bpBalance = user.bpBalance + amount;
+    user.bpBalance = user.bpBalance - amount;
     await user.save();
 
     if (competitorName) {
@@ -190,24 +189,27 @@ const placeBet = async (req, res) => {
         return res.status(404).json({ message: 'Competitor not found' });
       }
       // Update the competitor's value
-      competitor.value -= amount;
+      competitor.value += amount;
     }
     await market.save();
 
     // Create a new transaction document
     const newTransaction = new Transaction({
       userId,
-      amount,
+      amount: -amount,
       marketId,
       competitorName,
       status: 'approved',
       discordUsername: user.discordUsername,
       obkUsername: user.obkUsername
     });
+
     await newTransaction.save();
+    console.log("Transaction saved successfully");
 
     res.status(200).json({ message: 'Bet placed successfully' });
   } catch (error) {
+    console.error('Error placing bet:', error.message);
     res.status(500).json({ message: error.message });
   }
 };
