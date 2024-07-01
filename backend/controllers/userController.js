@@ -34,7 +34,28 @@ const getUser = async (req, res) => {
   }
 };
 
+const updateUser = async (req, res) => {
+  const { uid } = req.params;
+  const { discordUsername, obkUsername } = req.body;
+
+  try {
+    const user = await User.findOneAndUpdate(
+      { uid },
+      { discordUsername, obkUsername },
+      { new: true }
+    );
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
 module.exports = {
   registerUser,
   getUser,
+  updateUser,
 };

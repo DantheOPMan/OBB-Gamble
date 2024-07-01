@@ -5,6 +5,8 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   role: { type: String, enum: ['admin', 'user'], default: 'user' },
   bpBalance: { type: Number, default: 0 },
+  discordUsername: { type: String },  
+  obkUsername: { type: String },     
 });
 
 const User = mongoose.model('User', userSchema);

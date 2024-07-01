@@ -9,6 +9,9 @@ import MarketPage from './pages/MarketPage';
 import TermsAndConditionsPage from './pages/TermsAndConditionsPage';
 import UserProfile from './pages/UserProfile';
 import Navbar from './components/Navbar';
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminApprovalPage from './pages/AdminApprovalPage';
+import AuthenticatedRoute from './components/AuthenticatedRoute';
 import theme from './theme';
 
 const App = () => {
@@ -16,17 +19,22 @@ const App = () => {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Router>
-        <div>
-          <Navbar />
-          <Routes>
-            <Route path="/" element={<LoginPage />} />
-            <Route path="/admin" element={<AdminPage />} />
-            <Route path="/markets/:id" element={<MarketPage />} />
-            <Route path="/markets" element={<MarketsPage />} />
-            <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
-            <Route path="/profile" element={<UserProfile />} />
-          </Routes>
-        </div>
+        <AuthenticatedRoute>
+          <div>
+            <Navbar />
+            <Routes>
+              <Route path="/" element={<LoginPage />} />
+              <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+                <Route path="/admin" element={<AdminPage />} />
+                <Route path="/admin/approvals" element={<AdminApprovalPage />} />
+              </Route>
+              <Route path="/markets/:id" element={<MarketPage />} />
+              <Route path="/markets" element={<MarketsPage />} />
+              <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
+              <Route path="/profile" element={<UserProfile />} />
+            </Routes>
+          </div>
+        </AuthenticatedRoute>
       </Router>
     </ThemeProvider>
   );
