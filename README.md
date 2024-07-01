@@ -61,7 +61,7 @@ Oh Baby Markets is currently live at: [https://obb-markets-559dc43643a5.herokuap
 4. Start the backend server:
 
     ```bash
-    npm run server
+    nodemon server.js
     ```
 
 ### Frontend Setup
