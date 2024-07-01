@@ -16,8 +16,8 @@ Oh Baby Markets is a betting platform where users can place bets on various mark
 - Firebase
 - Node.js
 - Express
-- MongoDB
-- Material-UI
+- MongoDB Atlas
+- Heroku
 
 ## Live Demo
 
@@ -28,7 +28,7 @@ Oh Baby Markets is currently live at: [https://obb-markets-559dc43643a5.herokuap
 ### Prerequisites
 
 - Node.js
-- MongoDB
+- MongoDB Atlas
 - Firebase Project
 
 ### Backend Setup
