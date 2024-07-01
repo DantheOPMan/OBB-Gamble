@@ -1,7 +1,7 @@
 // src/pages/LoginPage.js
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth, signInWithPopup, provider } from '../firebase';
+import { auth, signInWithPopup, provider, registerUser } from '../firebase';
 import { Container, Box, Typography, Button, Link } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
 
@@ -10,7 +10,9 @@ const LoginPage = () => {
 
   const handleLogin = async () => {
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      await registerUser(user.uid, user.email);
       navigate('/markets');
     } catch (error) {
       console.error('Error logging in: ', error.message);
