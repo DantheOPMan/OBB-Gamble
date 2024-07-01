@@ -26,6 +26,7 @@ build/
 # Backend
 /backend/node_modules/
 /backend/.env
+/backend/middleware/firebaseServiceAccount.json
 
 # Optional npm cache directory
 .npm
