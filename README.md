@@ -1,6 +1,6 @@
 # Oh Baby Markets
 
-Oh Baby Markets is a betting platform where users can place bets on various markets. Users can deposit and withdraw their balance points (BP), and administrators can manage markets by creating, pausing, resuming, and closing them.
+Oh Baby Markets is a betting platform where users can place bets on various markets. Users can deposit and withdraw their BP, and administrators can manage markets by creating, pausing, resuming, and closing them.
 
 ## Features
 
