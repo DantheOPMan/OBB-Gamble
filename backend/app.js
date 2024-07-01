@@ -3,7 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const connectDB = require('./db/conn');
 const userRoutes = require('./routes/userRoutes');
-const transactionRoutes = require('./routes/transactionRoutes'); // Adjust path as necessary
+const transactionRoutes = require('./routes/transactionRoutes');
+const marketRoutes = require('./routes/marketRoutes'); // Import market routes
 
 const app = express();
 
@@ -14,5 +15,6 @@ connectDB();
 
 app.use('/api/users', userRoutes);
 app.use('/api/transactions', transactionRoutes); 
+app.use('/api/markets', marketRoutes);
 
 module.exports = app;

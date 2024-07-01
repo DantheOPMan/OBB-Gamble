@@ -1,28 +1,102 @@
-// src/AdminPage.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Container, Box, Button, Snackbar } from '@mui/material';
+import AdminApprovalPage from './AdminApprovalPage';
+import CloseMarketPage from './CloseMarketPage';
+import CreateMarketPage from './CreateMarketPage';
+import { fetchPendingTransactions, approveTransaction, rejectTransaction } from '../firebase';
 
 const AdminPage = () => {
-  const [marketName, setMarketName] = useState('');
-  const [marketDescription, setMarketDescription] = useState('');
+  const [currentSection, setCurrentSection] = useState('create');
+  const [transactions, setTransactions] = useState([]);
+  const [toastMessage, setToastMessage] = useState('');
+  const [openToast, setOpenToast] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    // Implement market creation logic here
-    setMarketName('');
-    setMarketDescription('');
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        const response = await fetchPendingTransactions();
+        setTransactions(response);
+      } catch (error) {
+        console.error('Failed to fetch transactions', error);
+      }
+    };
+
+    fetchTransactions();
+  }, []);
+
+  const handleApprove = async (transactionId) => {
+    try {
+      await approveTransaction(transactionId);
+      setTransactions(transactions.filter((transaction) => transaction._id !== transactionId));
+      setToastMessage('Transaction approved');
+      setOpenToast(true);
+    } catch (error) {
+      console.error('Failed to approve transaction', error);
+      setToastMessage('Failed to approve transaction');
+      setOpenToast(true);
+    }
+  };
+
+  const handleReject = async (transactionId) => {
+    try {
+      await rejectTransaction(transactionId);
+      setTransactions(transactions.filter((transaction) => transaction._id !== transactionId));
+      setToastMessage('Transaction rejected');
+      setOpenToast(true);
+    } catch (error) {
+      console.error('Failed to reject transaction', error);
+      setToastMessage('Failed to reject transaction');
+      setOpenToast(true);
+    }
+  };
+
+  const handleCloseToast = () => {
+    setOpenToast(false);
   };
 
   return (
-    <div>
-      <h2>Create New Market</h2>
-      <form onSubmit={handleSubmit}>
-        <label>Market Name:</label>
-        <input type="text" value={marketName} onChange={(e) => setMarketName(e.target.value)} required />
-        <label>Market Description:</label>
-        <textarea value={marketDescription} onChange={(e) => setMarketDescription(e.target.value)} required />
-        <button type="submit">Create Market</button>
-      </form>
-    </div>
+    <Container component="main" maxWidth="md">
+      <Box
+        sx={{
+          marginTop: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          bgcolor: 'background.default',
+          padding: 4,
+          borderRadius: 2,
+        }}
+      >
+        <Box sx={{ display: 'flex', mb: 4 }}>
+          <Button variant="contained" onClick={() => setCurrentSection('create')} sx={{ mr: 2 }}>
+            Create Market
+          </Button>
+          <Button variant="contained" onClick={() => setCurrentSection('close')} sx={{ mr: 2 }}>
+            Close Market
+          </Button>
+          <Button variant="contained" onClick={() => setCurrentSection('approve')}>
+            Admin Approval
+          </Button>
+        </Box>
+
+        {currentSection === 'create' && <CreateMarketPage />}
+        {currentSection === 'close' && <CloseMarketPage />}
+        {currentSection === 'approve' && (
+          <AdminApprovalPage
+            transactions={transactions}
+            handleApprove={handleApprove}
+            handleReject={handleReject}
+          />
+        )}
+      </Box>
+
+      <Snackbar
+        open={openToast}
+        autoHideDuration={6000}
+        onClose={handleCloseToast}
+        message={toastMessage}
+      />
+    </Container>
   );
 };
 

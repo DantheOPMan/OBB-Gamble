@@ -1,6 +1,5 @@
-// src/pages/DepositWithdrawForm.js
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, TextField, Button, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import { Box, Typography, TextField, Button, ToggleButtonGroup, ToggleButton, Snackbar } from '@mui/material';
 import { auth, requestDeposit, requestWithdraw, getUser } from '../firebase';
 
 const DepositWithdrawForm = ({ onClose }) => {
@@ -8,21 +7,24 @@ const DepositWithdrawForm = ({ onClose }) => {
   const [message, setMessage] = useState('');
   const [transactionType, setTransactionType] = useState('deposit');
   const [userBalance, setUserBalance] = useState(0);
+  const [openToast, setOpenToast] = useState(false);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const fetchUserBalance = async () => {
+    const fetchUserDetails = async () => {
       try {
         const currentUser = auth.currentUser;
         if (currentUser) {
           const data = await getUser(currentUser.uid);
           setUserBalance(data.bpBalance);
+          setUser(data);
         }
       } catch (error) {
-        console.error('Error fetching user balance: ', error);
+        console.error('Error fetching user details: ', error);
       }
     };
 
-    fetchUserBalance();
+    fetchUserDetails();
   }, []);
 
   const handleTransaction = async () => {
@@ -38,13 +40,19 @@ const DepositWithdrawForm = ({ onClose }) => {
       return;
     }
 
+    if (!user.discordUsername || !user.obkUsername) {
+      setMessage('Discord and OBK usernames are required');
+      setOpenToast(true);
+      return;
+    }
+
     try {
       const userId = auth.currentUser.uid;
       if (transactionType === 'deposit') {
-        await requestDeposit(userId, numAmount);
+        await requestDeposit(userId, numAmount, user.discordUsername, user.obkUsername);
         setMessage('Deposit request submitted successfully');
       } else {
-        await requestWithdraw(userId, numAmount); // Keep value positive for request
+        await requestWithdraw(userId, numAmount, user.discordUsername, user.obkUsername); // Keep value positive for request
         setMessage('Withdraw request submitted successfully');
       }
       setAmount('');
@@ -59,6 +67,10 @@ const DepositWithdrawForm = ({ onClose }) => {
       setTransactionType(newType);
       setMessage(''); // Clear the message when toggling
     }
+  };
+
+  const handleCloseToast = () => {
+    setOpenToast(false);
   };
 
   return (
@@ -118,6 +130,12 @@ const DepositWithdrawForm = ({ onClose }) => {
         Submit
       </Button>
       {message && <Typography color="error" sx={{ marginTop: 2 }}>{message}</Typography>}
+      <Snackbar
+        open={openToast}
+        autoHideDuration={6000}
+        onClose={handleCloseToast}
+        message="Discord and OBK usernames are required"
+      />
     </Box>
   );
 };

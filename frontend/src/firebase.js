@@ -59,23 +59,52 @@ const getUser = async (uid) => {
   return makeRequest(`/api/users/${uid}`, 'GET');
 };
 
-const requestDeposit = async (userId, amount) => {
+const requestDeposit = async (userId, amount, discordUsername, obkUsername) => {
   const marketName = ""; // Set marketName to an empty string
-  return makeRequest('/api/transactions/deposit', 'POST', { userId, amount, marketName });
+  return makeRequest('/api/transactions/deposit', 'POST', { userId, amount, marketName, discordUsername, obkUsername });
 };
 
-const requestWithdraw = async (userId, amount) => {
+const requestWithdraw = async (userId, amount, discordUsername, obkUsername) => {
   const marketName = ""; // Set marketName to an empty string
-  return makeRequest('/api/transactions/withdraw', 'POST', { userId, amount, marketName });
+  return makeRequest('/api/transactions/withdraw', 'POST', { userId, amount, marketName, discordUsername, obkUsername });
 };
 
 const approveTransaction = async (transactionId) => {
   return makeRequest(`/api/transactions/approve/${transactionId}`, 'PUT');
 };
 
+const rejectTransaction = async (transactionId) => {
+  return makeRequest(`/api/transactions/reject/${transactionId}`, 'PUT');
+};
+
+const fetchPendingTransactions = async () => {
+  return makeRequest('/api/transactions/pending', 'GET');
+};
+
 const updateUser = async (uid, discordUsername, obkUsername) => {
   return makeRequest(`/api/users/${uid}`, 'PUT', { discordUsername, obkUsername });
 };
 
+const createMarket = async (marketName, competitors) => {
+  return makeRequest('/api/markets', 'POST', { marketName, competitors });
+};
 
-export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, makeRequest };
+const getMarkets = async () => {
+  return makeRequest('/api/markets', 'GET');
+};
+
+
+const closeMarket = async (marketId, winner) => {
+  return makeRequest(`/api/markets/close/${marketId}`, 'POST', { winner });
+};
+
+const getMarketById = async (marketId) => {
+  return makeRequest(`/api/markets/${marketId}`, 'GET');
+};
+
+const placeBet = async (marketId, amount) => {
+  const userId = auth.currentUser.uid;
+  return makeRequest(`/api/markets/bet/${marketId}`, 'POST', { userId, amount });
+};
+
+export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, createMarket, getMarkets, closeMarket, getMarketById, placeBet };
