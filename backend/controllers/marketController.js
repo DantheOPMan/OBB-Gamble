@@ -85,6 +85,7 @@ const closeMarket = async (req, res) => {
     const netPool = totalPool - adminFee;
     const adminUsers = await User.find({ role: 'admin' });
     const adminFeePerUser = adminFee / adminUsers.length;
+
     for (const admin of adminUsers) {
       const adminTransaction = new Transaction({
         userId: admin.uid,
@@ -95,8 +96,9 @@ const closeMarket = async (req, res) => {
         discordUsername: admin.discordUsername,
         obkUsername: admin.obkUsername
       });
-      admin.bpBalance +=adminFeePerUser
+      admin.bpBalance += adminFeePerUser;
       await adminTransaction.save();
+      await admin.save();
     }
 
     if (totalWinningBets === 0) {
@@ -112,6 +114,17 @@ const closeMarket = async (req, res) => {
           if (user) {
             const userPayout = (transaction.amount / totalWinningBets) * netPool;
             user.bpBalance += userPayout;
+
+            const payoutTransaction = new Transaction({
+              userId: user.uid,
+              amount: userPayout,
+              marketId: market._id,
+              competitorName: winner,
+              status: 'approved',
+              discordUsername: user.discordUsername,
+              obkUsername: user.obkUsername
+            });
+            await payoutTransaction.save();
             await user.save();
           }
         }
@@ -167,7 +180,8 @@ const placeBet = async (req, res) => {
     }
 
     // Deduct the amount from user balance
-    user.bpBalance = user.bpBalance - amount;
+    amount *=-1
+    user.bpBalance = user.bpBalance + amount;
     await user.save();
 
     if (competitorName) {
@@ -176,7 +190,7 @@ const placeBet = async (req, res) => {
         return res.status(404).json({ message: 'Competitor not found' });
       }
       // Update the competitor's value
-      competitor.value += amount;
+      competitor.value -= amount;
     }
     await market.save();
 
