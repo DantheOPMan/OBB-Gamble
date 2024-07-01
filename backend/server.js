@@ -1,3 +1,4 @@
+// backend/server.js
 const app = require('./app');
 const express = require('express');
 const path = require('path');
@@ -10,7 +11,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 app.listen(port, () => {
   console.log(`Server is running on port: ${port}`);
 });
