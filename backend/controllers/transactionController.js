@@ -122,10 +122,20 @@ const getPendingTransactions = async (req, res) => {
   }
 };
 
+const getApprovedTransactions = async (req, res) => {
+  try {
+    const transactions = await Transaction.find({ status: 'approved' }).populate('userId');
+    res.status(200).json(transactions);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   requestDeposit,
   requestWithdraw,
   approveTransaction,
   rejectTransaction,
-  getPendingTransactions
+  getPendingTransactions,
+  getApprovedTransactions
 };

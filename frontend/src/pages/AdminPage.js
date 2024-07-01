@@ -3,6 +3,7 @@ import { Container, Box, Button, Snackbar } from '@mui/material';
 import AdminApprovalPage from './AdminApprovalPage';
 import CloseMarketPage from './CloseMarketPage';
 import CreateMarketPage from './CreateMarketPage';
+import ApprovedTransactionsPage from './ApprovedTransactionsPage';
 import { fetchPendingTransactions, approveTransaction, rejectTransaction } from '../firebase';
 
 const AdminPage = () => {
@@ -74,8 +75,11 @@ const AdminPage = () => {
           <Button variant="contained" onClick={() => setCurrentSection('close')} sx={{ mr: 2 }}>
             Close Market
           </Button>
-          <Button variant="contained" onClick={() => setCurrentSection('approve')}>
+          <Button variant="contained" onClick={() => setCurrentSection('approve')} sx={{ mr: 2 }}>
             Admin Approval
+          </Button>
+          <Button variant="contained" onClick={() => setCurrentSection('approvedTransactions')}>
+            Approved Transactions
           </Button>
         </Box>
 
@@ -88,6 +92,7 @@ const AdminPage = () => {
             handleReject={handleReject}
           />
         )}
+        {currentSection === 'approvedTransactions' && <ApprovedTransactionsPage />}
       </Box>
 
       <Snackbar

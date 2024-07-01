@@ -19,7 +19,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
-// src/firebase.js
 const makeRequest = async (endpoint, method, body = null) => {
   const user = auth.currentUser;
   if (!user) {
@@ -81,6 +80,10 @@ const fetchPendingTransactions = async () => {
   return makeRequest('/api/transactions/pending', 'GET');
 };
 
+const fetchApprovedTransactions = async () => {
+  return makeRequest('/api/transactions/approved', 'GET');
+};
+
 const updateUser = async (uid, discordUsername, obkUsername) => {
   return makeRequest(`/api/users/${uid}`, 'PUT', { discordUsername, obkUsername });
 };
@@ -123,4 +126,4 @@ const getBetTransactions = async (marketId) => {
   }
 };
 
-export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, createMarket, getMarkets, pauseMarket, closeMarket, resumeMarket, getMarketById, placeBet, getBetTransactions };
+export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, fetchApprovedTransactions, createMarket, getMarkets, pauseMarket, closeMarket, resumeMarket, getMarketById, placeBet, getBetTransactions };
