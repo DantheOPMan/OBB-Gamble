@@ -8,6 +8,7 @@ const DepositWithdrawForm = ({ onClose }) => {
   const [transactionType, setTransactionType] = useState('deposit');
   const [userBalance, setUserBalance] = useState(0);
   const [openToast, setOpenToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -50,12 +51,13 @@ const DepositWithdrawForm = ({ onClose }) => {
       const userId = auth.currentUser.uid;
       if (transactionType === 'deposit') {
         await requestDeposit(userId, numAmount, user.discordUsername, user.obkUsername);
-        setMessage('Deposit request submitted successfully');
+        setToastMessage('Deposit request submitted successfully');
       } else {
         await requestWithdraw(userId, numAmount, user.discordUsername, user.obkUsername); // Keep value positive for request
-        setMessage('Withdraw request submitted successfully');
+        setToastMessage('Withdraw request submitted successfully');
       }
       setAmount('');
+      setOpenToast(true);
       onClose();
     } catch (error) {
       setMessage('Failed to submit request');
@@ -71,6 +73,7 @@ const DepositWithdrawForm = ({ onClose }) => {
 
   const handleCloseToast = () => {
     setOpenToast(false);
+    setToastMessage('');
   };
 
   return (
@@ -134,7 +137,7 @@ const DepositWithdrawForm = ({ onClose }) => {
         open={openToast}
         autoHideDuration={6000}
         onClose={handleCloseToast}
-        message="Discord and OBK usernames are required"
+        message={toastMessage}
       />
     </Box>
   );

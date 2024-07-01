@@ -13,7 +13,7 @@ const CloseMarketPage = () => {
     const fetchMarkets = async () => {
       try {
         const response = await getMarkets();
-        setMarkets(response);
+        setMarkets(response.filter(market => market.status === 'open')); // Filter out closed markets
       } catch (error) {
         console.error('Failed to fetch markets', error);
       }
@@ -35,6 +35,9 @@ const CloseMarketPage = () => {
       await closeMarket(selectedMarket, selectedWinner);
       setMessage('Market closed successfully');
       setOpenToast(true);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000); // Adjust the delay as needed
     } catch (error) {
       setMessage('Failed to close market');
       setOpenToast(true);
@@ -64,11 +67,18 @@ const CloseMarketPage = () => {
           onChange={handleMarketChange}
           displayEmpty
           fullWidth
-          sx={{ mt: 3, mb: 3 }}
+          sx={{ mt: 3, mb: 3, bgcolor: '#333' }}
+          MenuProps={{
+            PaperProps: {
+              sx: {
+                bgcolor: '#333',
+              },
+            },
+          }}
         >
-          <MenuItem value="" disabled>Select Market</MenuItem>
+          <MenuItem value="" disabled sx={{ bgcolor: '#333', color: 'white' }}>Select Market</MenuItem>
           {markets.map((market) => (
-            <MenuItem key={market._id} value={market._id}>{market.name}</MenuItem>
+            <MenuItem key={market._id} value={market._id} sx={{ bgcolor: '#333', color: 'white' }}>{market.name}</MenuItem>
           ))}
         </Select>
         <Select
@@ -76,12 +86,19 @@ const CloseMarketPage = () => {
           onChange={handleWinnerChange}
           displayEmpty
           fullWidth
-          sx={{ mb: 3 }}
+          sx={{ mb: 3, bgcolor: '#333' }}
           disabled={!selectedMarket}
+          MenuProps={{
+            PaperProps: {
+              sx: {
+                bgcolor: '#333',
+              },
+            },
+          }}
         >
-          <MenuItem value="" disabled>Select Winner</MenuItem>
+          <MenuItem value="" disabled sx={{ bgcolor: '#333', color: 'white' }}>Select Winner</MenuItem>
           {selectedMarket && markets.find((market) => market._id === selectedMarket).competitors.map((competitor, index) => (
-            <MenuItem key={index} value={competitor.name}>{competitor.name}</MenuItem>
+            <MenuItem key={index} value={competitor.name} sx={{ bgcolor: '#333', color: 'white' }}>{competitor.name}</MenuItem>
           ))}
         </Select>
         <Button

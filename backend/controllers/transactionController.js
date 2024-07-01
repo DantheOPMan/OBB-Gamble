@@ -2,7 +2,7 @@ const Transaction = require('../models/transactionModel');
 const User = require('../models/userModel');
 
 const requestDeposit = async (req, res) => {
-  const { userId, amount, marketName, discordUsername, obkUsername } = req.body;
+  const { userId, amount, discordUsername, obkUsername } = req.body;
 
   if (!userId || !amount || !discordUsername || !obkUsername) {
     return res.status(400).json({ message: 'User ID, amount, Discord username, and OBK username are required' });
@@ -21,7 +21,6 @@ const requestDeposit = async (req, res) => {
     const transaction = new Transaction({
       userId,
       amount,
-      marketName,
       discordUsername,
       obkUsername,
       status: 'pending',
@@ -34,7 +33,7 @@ const requestDeposit = async (req, res) => {
 };
 
 const requestWithdraw = async (req, res) => {
-  const { userId, amount, marketName, discordUsername, obkUsername } = req.body;
+  const { userId, amount, discordUsername, obkUsername } = req.body;
 
   if (!userId || !amount || !discordUsername || !obkUsername) {
     return res.status(400).json({ message: 'User ID, amount, Discord username, and OBK username are required' });
@@ -53,7 +52,6 @@ const requestWithdraw = async (req, res) => {
     const transaction = new Transaction({
       userId,
       amount: -amount,
-      marketName,
       discordUsername,
       obkUsername,
       status: 'pending',

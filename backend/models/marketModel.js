@@ -5,7 +5,7 @@ const marketSchema = new mongoose.Schema({
   competitors: [
     {
       name: { type: String, required: true },
-      value: { type: Number, required: true }
+      value: { type: Number, required: true, default: 0 }
     }
   ],
   status: { type: String, enum: ['open', 'closed'], default: 'open' },

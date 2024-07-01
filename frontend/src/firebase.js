@@ -102,9 +102,18 @@ const getMarketById = async (marketId) => {
   return makeRequest(`/api/markets/${marketId}`, 'GET');
 };
 
-const placeBet = async (marketId, amount) => {
+const placeBet = async (marketId, amount, competitorName) => {
   const userId = auth.currentUser.uid;
-  return makeRequest(`/api/markets/bet/${marketId}`, 'POST', { userId, amount });
+  return makeRequest(`/api/markets/bet/${marketId}`, 'POST', { userId, amount, competitorName });
 };
 
-export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, createMarket, getMarkets, closeMarket, getMarketById, placeBet };
+const getBetTransactions = async (marketId) => {
+  try {
+    return await makeRequest(`/api/markets/transactions/${marketId}`, 'GET');
+  } catch (error) {
+    console.error('Failed to fetch bet transactions:', error);
+    throw error;
+  }
+};
+
+export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, createMarket, getMarkets, closeMarket, getMarketById, placeBet, getBetTransactions };

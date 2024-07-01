@@ -5,28 +5,32 @@ import { createMarket } from '../firebase';
 
 const CreateMarketPage = () => {
   const [marketName, setMarketName] = useState('');
-  const [competitors, setCompetitors] = useState([{ name: '', value: '' }]);
+  const [competitors, setCompetitors] = useState([{ name: '', value: 0 }]);
   const [message, setMessage] = useState('');
   const [openToast, setOpenToast] = useState(false);
 
   const handleAddCompetitor = () => {
-    setCompetitors([...competitors, { name: '', value: '' }]);
+    setCompetitors([...competitors, { name: '', value: 0 }]);
   };
 
   const handleCompetitorChange = (index, field, value) => {
     const newCompetitors = [...competitors];
-    newCompetitors[index][field] = value;
+    newCompetitors[index][field] = field === 'value' ? 0 : value; // Ensure value is set to 0
     setCompetitors(newCompetitors);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await createMarket(marketName, competitors);
+      const competitorsWithInitialValue = competitors.map(competitor => ({
+        ...competitor,
+        value: 0, // Ensure all values are set to 0
+      }));
+      await createMarket(marketName, competitorsWithInitialValue);
       setMessage('Market created successfully');
       setOpenToast(true);
       setMarketName('');
-      setCompetitors([{ name: '', value: '' }]);
+      setCompetitors([{ name: '', value: 0 }]);
     } catch (error) {
       setMessage('Failed to create market');
       setOpenToast(true);
@@ -69,14 +73,6 @@ const CreateMarketPage = () => {
                 onChange={(e) => handleCompetitorChange(index, 'name', e.target.value)}
                 required
                 sx={{ mr: 1 }}
-              />
-              <TextField
-                label="Initial Value"
-                type="number"
-                fullWidth
-                value={competitor.value}
-                onChange={(e) => handleCompetitorChange(index, 'value', e.target.value)}
-                required
               />
             </Box>
           ))}

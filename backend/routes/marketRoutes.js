@@ -1,5 +1,5 @@
 const express = require('express');
-const { createMarket, getMarkets, closeMarket, getMarketById, placeBet } = require('../controllers/marketController');
+const { createMarket, getMarkets, closeMarket, getMarketById, placeBet, getBetTransactions } = require('../controllers/marketController');
 const { verifyToken, isAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -9,5 +9,6 @@ router.get('/', verifyToken, getMarkets);
 router.post('/close/:marketId', verifyToken, isAdmin, closeMarket);
 router.get('/:marketId', verifyToken, getMarketById);
 router.post('/bet/:marketId', verifyToken, placeBet);
+router.get('/transactions/:marketId', verifyToken, getBetTransactions);
 
 module.exports = router;
