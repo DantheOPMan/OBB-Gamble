@@ -93,9 +93,16 @@ const getMarkets = async () => {
   return makeRequest('/api/markets', 'GET');
 };
 
+const pauseMarket = async (marketId) => {
+  return makeRequest(`/api/markets/pause/${marketId}`, 'POST');
+};
 
 const closeMarket = async (marketId, winner) => {
   return makeRequest(`/api/markets/close/${marketId}`, 'POST', { winner });
+};
+
+const resumeMarket = async (marketId) => {
+  return makeRequest(`/api/markets/resume/${marketId}`, 'POST');
 };
 
 const getMarketById = async (marketId) => {
@@ -116,4 +123,4 @@ const getBetTransactions = async (marketId) => {
   }
 };
 
-export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, createMarket, getMarkets, closeMarket, getMarketById, placeBet, getBetTransactions };
+export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, createMarket, getMarkets, pauseMarket, closeMarket, resumeMarket, getMarketById, placeBet, getBetTransactions };

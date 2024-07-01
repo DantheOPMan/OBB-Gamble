@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getUser, updateUser, auth } from '../firebase';
-import { Container, Box, Typography, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '@mui/material';
+import { Container, Box, Typography, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Snackbar } from '@mui/material';
 import DepositWithdrawForm from './DepositWithdrawForm';
 
 const UserProfile = () => {
@@ -9,6 +9,8 @@ const UserProfile = () => {
   const [openDepositWithdraw, setOpenDepositWithdraw] = useState(false);
   const [discordUsername, setDiscordUsername] = useState('');
   const [obkUsername, setObkUsername] = useState('');
+  const [openToast, setOpenToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
     const currentUser = auth.currentUser;
@@ -53,6 +55,16 @@ const UserProfile = () => {
     } catch (error) {
       console.error('Error updating usernames: ', error);
     }
+  };
+
+  const handleShowToast = (message) => {
+    setToastMessage(message);
+    setOpenToast(true);
+  };
+
+  const handleCloseToast = () => {
+    setOpenToast(false);
+    setToastMessage('');
   };
 
   if (!userData) {
@@ -146,7 +158,7 @@ const UserProfile = () => {
       <Dialog open={openDepositWithdraw} onClose={handleCloseDepositWithdraw}>
         <DialogTitle sx={{ bgcolor: '#333', color: '#fff' }}>Deposit/Withdraw BP</DialogTitle>
         <DialogContent sx={{ bgcolor: '#333', color: '#fff' }}>
-          <DepositWithdrawForm onClose={handleCloseDepositWithdraw} />
+          <DepositWithdrawForm onClose={handleCloseDepositWithdraw} onShowToast={handleShowToast} />
         </DialogContent>
         <DialogActions sx={{ bgcolor: '#333', color: '#fff' }}>
           <Button onClick={handleCloseDepositWithdraw} color="primary" sx={{ color: '#ff7961' }}>
@@ -154,6 +166,12 @@ const UserProfile = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      <Snackbar
+        open={openToast}
+        autoHideDuration={6000}
+        onClose={handleCloseToast}
+        message={toastMessage}
+      />
     </Container>
   );
 };

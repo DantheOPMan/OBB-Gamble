@@ -23,6 +23,43 @@ const getMarkets = async (req, res) => {
   }
 };
 
+const pauseMarket = async (req, res) => {
+  const { marketId } = req.params;
+
+  try {
+    const market = await Market.findById(marketId);
+    if (!market) {
+      return res.status(404).json({ message: 'Market not found' });
+    }
+
+    market.status = 'paused';
+    await market.save();
+
+    res.status(200).json(market);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const resumeMarket = async (req, res) => {
+  const { marketId } = req.params;
+
+  try {
+    const market = await Market.findById(marketId);
+    if (!market) {
+      return res.status(404).json({ message: 'Market not found' });
+    }
+
+    market.status = 'open';
+    await market.save();
+
+    res.status(200).json(market);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
 const closeMarket = async (req, res) => {
   const { marketId } = req.params;
   const { winner } = req.body;
@@ -44,10 +81,8 @@ const closeMarket = async (req, res) => {
     const totalWinningBets = winner
       ? transactions.filter(transaction => transaction.competitorName === winner).reduce((sum, transaction) => sum + transaction.amount, 0)
       : 0;
-
     const adminFee = Math.ceil(totalPool * 0.01);
     const netPool = totalPool - adminFee;
-
     const adminUsers = await User.find({ role: 'admin' });
     const adminFeePerUser = adminFee / adminUsers.length;
     for (const admin of adminUsers) {
@@ -60,6 +95,7 @@ const closeMarket = async (req, res) => {
         discordUsername: admin.discordUsername,
         obkUsername: admin.obkUsername
       });
+      admin.bpBalance +=adminFeePerUser
       await adminTransaction.save();
     }
 
@@ -117,6 +153,10 @@ const placeBet = async (req, res) => {
       return res.status(404).json({ message: 'Market not found' });
     }
 
+    if (market.status !== 'open') {
+      return res.status(400).json({ message: 'Cannot place bet. Market is not open.' });
+    }
+
     const user = await User.findOne({ uid: userId });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -169,4 +209,5 @@ const getBetTransactions = async (req, res) => {
   }
 };
 
-module.exports = { createMarket, getMarkets, closeMarket, getMarketById, placeBet, getBetTransactions };
+
+module.exports = { createMarket, getMarkets, pauseMarket, resumeMarket, closeMarket, getMarketById, placeBet, getBetTransactions };

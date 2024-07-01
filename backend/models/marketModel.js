@@ -8,7 +8,7 @@ const marketSchema = new mongoose.Schema({
       value: { type: Number, required: true, default: 0 }
     }
   ],
-  status: { type: String, enum: ['open', 'closed'], default: 'open' },
+  status: { type: String, enum: ['open', 'paused', 'closed'], default: 'open' },
   winner: { type: String }
 });
 

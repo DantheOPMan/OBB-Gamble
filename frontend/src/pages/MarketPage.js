@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Line } from 'react-chartjs-2';
-import { Container, Box, Typography, Paper, List, ListItem, ListItemText, TextField, Button, MenuItem, Select, Snackbar } from '@mui/material';
-import { getMarketById, placeBet, getBetTransactions } from '../firebase';
+import { Container, Box, Typography, Paper, List, ListItem, ListItemText, TextField, Button, MenuItem, Select, Snackbar, Grid } from '@mui/material';
+import { auth, getMarketById, placeBet, getBetTransactions, getUser } from '../firebase';
 
 // Import and register necessary components from Chart.js
 import {
@@ -34,6 +34,7 @@ const MarketPage = () => {
   const [message, setMessage] = useState('');
   const [openToast, setOpenToast] = useState(false);
   const [betTransactions, setBetTransactions] = useState([]);
+  const [userBP, setUserBP] = useState(0);
   const chartRef = useRef(null);
 
   useEffect(() => {
@@ -49,6 +50,9 @@ const MarketPage = () => {
 
         const transactions = await getBetTransactions(marketId);
         setBetTransactions(Array.isArray(transactions) ? transactions : []);
+
+        const currentUser = await getUser(auth.currentUser.uid);
+        setUserBP(currentUser.bpBalance);
       } catch (error) {
         console.error('Failed to fetch market data', error);
         setBetTransactions([]);
@@ -85,7 +89,7 @@ const MarketPage = () => {
     transactions.forEach((transaction, index) => {
       const updatedCompetitors = [...competitors];
       const currentTransaction = transactions[index];
-      
+
       // Update competitor values based on transactions up to the current point
       updatedCompetitors.forEach(competitor => {
         const relevantTransactions = transactions
@@ -161,7 +165,7 @@ const MarketPage = () => {
   };
 
   return (
-    <Container component="main" maxWidth="md">
+    <Container component="main" maxWidth="lg">
       <Box
         sx={{
           marginTop: 8,
@@ -174,99 +178,122 @@ const MarketPage = () => {
           position: 'relative'
         }}
       >
-        <Typography component="h1" variant="h5" sx={{ marginBottom: 4 }}>
-          {marketData.name || 'Market'}
-        </Typography>
-        {marketData.status && (
-          <Typography
-            variant="body2"
-            sx={{
-              position: 'absolute',
-              top: 16,
-              right: 16,
-              backgroundColor: marketData.status === 'open' ? 'green' : 'red',
-              color: 'white',
-              padding: '4px 8px',
-              borderRadius: 2,
-            }}
-          >
-            {marketData.status.toUpperCase()}
-          </Typography>
-        )}
-        {marketData.winner && (
-          <Typography
-            variant="body1"
-            sx={{
-              position: 'absolute',
-              top: 16,
-              left: 16,
-              backgroundColor: 'gold',
-              color: 'black',
-              padding: '4px 8px',
-              borderRadius: 2,
-            }}
-          >
-            {marketData.winner} won!
-          </Typography>
-        )}
-        <Paper sx={{ width: '100%', padding: 2, marginBottom: 4, backgroundColor: '#2c2c2c', border: '1px solid white', boxShadow: '0 4px 8px rgba(255, 255, 255, 0.1)' }}>
-          <Typography variant="h6" sx={{ marginBottom: 2, color: 'white' }}>
-            Competitors and Likelihoods
-          </Typography>
-          <List>
-            {competitorsWithLikelihoods.map((competitor) => (
-              <ListItem key={competitor.name}>
-                <ListItemText
-                  primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
-                  sx={{ color: '#FFF' }}
+        <Grid container spacing={2} justifyContent="center">
+          <Grid item xs={12} sm={5} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Typography component="h1" variant="h5" sx={{ marginBottom: 4, textAlign: 'center' }}>
+              {marketData.name || 'Market'}
+            </Typography>
+            {marketData.status && (
+              <Typography
+                variant="body2"
+                sx={{
+                  backgroundColor: marketData.status === 'open' ? 'green' : (marketData.status === 'paused' ? 'orange' : 'red'),
+                  color: 'white',
+                  padding: '4px 8px',
+                  borderRadius: 2,
+                  textAlign: 'center',
+                }}
+              >
+                {marketData.status.toUpperCase()}
+              </Typography>
+            )}
+            {marketData.winner && (
+              <Typography
+                variant="body1"
+                sx={{
+                  backgroundColor: 'gold',
+                  color: 'black',
+                  padding: '4px 8px',
+                  borderRadius: 2,
+                  textAlign: 'center',
+                  marginTop: 2,
+                }}
+              >
+                {marketData.winner} won!
+              </Typography>
+            )}
+            <Paper sx={{ width: '100%', padding: 2, marginBottom: 4, marginTop: 2, backgroundColor: '#2c2c2c', border: '1px solid white', boxShadow: '0 4px 8px rgba(255, 255, 255, 0.1)' }}>
+              <Typography variant="h6" sx={{ marginBottom: 2, color: 'white', textAlign: 'center' }}>
+                Competitors and Likelihoods
+              </Typography>
+              <List>
+                {competitorsWithLikelihoods.map((competitor) => (
+                  <ListItem key={competitor.name}>
+                    <ListItemText
+                      primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
+                      sx={{ color: '#FFF' }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
+            {marketData.status === 'open' && (
+              <Paper sx={{ width: '100%', padding: 2, marginBottom: 4, backgroundColor: '#2c2c2c', border: '1px solid white', boxShadow: '0 4px 8px rgba(255, 255, 255, 0.1)' }}>
+                <Typography variant="h6" sx={{ marginBottom: 2, color: 'white', textAlign: 'center' }}>
+                  Place a Bet
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#FFF', marginBottom: 2 }}>
+                  BP: {userBP}
+                </Typography>
+                <TextField
+                  label="Bet Amount"
+                  type="number"
+                  value={betAmount}
+                  onChange={(e) => setBetAmount(e.target.value)}
+                  sx={{ marginBottom: 2, width: '100%', input: { color: '#FFF' }, '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: 'white' } } }}
+                  InputLabelProps={{
+                    style: { color: '#FFF' },
+                  }}
                 />
-              </ListItem>
-            ))}
-          </List>
-        </Paper>
-        <Paper sx={{ width: '100%', padding: 2, marginBottom: 4, backgroundColor: '#2c2c2c', border: '1px solid white', boxShadow: '0 4px 8px rgba(255, 255, 255, 0.1)' }}>
-          <Typography variant="h6" sx={{ marginBottom: 2, color: 'white' }}>
-            Place a Bet
-          </Typography>
-          <TextField
-            label="Bet Amount"
-            type="number"
-            value={betAmount}
-            onChange={(e) => setBetAmount(e.target.value)}
-            sx={{ marginBottom: 2, width: '100%', input: { color: '#FFF' }, '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: 'white' } } }}
-            InputLabelProps={{
-              style: { color: '#FFF' },
-            }}
-          />
-          <Select
-            value={selectedCompetitor}
-            onChange={(e) => setSelectedCompetitor(e.target.value)}
-            displayEmpty
-            fullWidth
-            sx={{ marginBottom: 2, color: '#FFF', '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: 'white' } } }}
-            MenuProps={{
-              PaperProps: {
-                sx: {
-                  bgcolor: '#2c2c2c',
-                  color: '#FFF',
-                },
-              },
-            }}
-          >
-            <MenuItem value="" disabled>
-              Select Competitor
-            </MenuItem>
-            {marketData.competitors && marketData.competitors.map((competitor) => (
-              <MenuItem key={competitor.name} value={competitor.name} sx={{ color: '#FFF' }}>
-                {competitor.name}
-              </MenuItem>
-            ))}
-          </Select>
-          <Button variant="contained" color="primary" fullWidth onClick={handleBet}>
-            Bet
-          </Button>
-        </Paper>
-        <Line ref={chartRef} data={data} options={options} />
+                <Select
+                  value={selectedCompetitor}
+                  onChange={(e) => setSelectedCompetitor(e.target.value)}
+                  displayEmpty
+                  fullWidth
+                  sx={{ marginBottom: 2, color: '#FFF', '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: 'white' } } }}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        bgcolor: '#2c2c2c',
+                        color: '#FFF',
+                      },
+                    },
+                  }}
+                >
+                  <MenuItem value="" disabled>
+                    Select Competitor
+                  </MenuItem>
+                  {marketData.competitors && marketData.competitors.map((competitor) => (
+                    <MenuItem key={competitor.name} value={competitor.name} sx={{ color: '#FFF' }}>
+                      {competitor.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <Button variant="contained" color="primary" fullWidth onClick={handleBet}>
+                  Bet
+                </Button>
+              </Paper>
+            )}
+          </Grid>
+          <Grid item xs={12} sm={7} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Line ref={chartRef} data={data} options={options} />
+            <Paper sx={{ width: '100%', padding: 2, marginTop: 4, backgroundColor: '#2c2c2c', border: '1px solid white', boxShadow: '0 4px 8px rgba(255, 255, 255, 0.1)' }}>
+              <Typography variant="h6" sx={{ marginBottom: 2, color: 'white', textAlign: 'center' }}>
+                Market Transactions
+              </Typography>
+              <List>
+                {betTransactions.map((transaction, index) => (
+                  <ListItem key={transaction._id}>
+                    <ListItemText
+                      primary={`${index + 1}. Option: ${transaction.competitorName}, Amount: ${transaction.amount} BP, Timestamp: ${new Date(transaction.timestamp).toLocaleString()}`}
+                      sx={{ color: '#FFF' }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
+          </Grid>
+        </Grid>
       </Box>
       <Snackbar
         open={openToast}

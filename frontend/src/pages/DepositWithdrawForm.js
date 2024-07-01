@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, TextField, Button, ToggleButtonGroup, ToggleButton, Snackbar } from '@mui/material';
+import { Box, Typography, TextField, Button, ToggleButtonGroup, ToggleButton } from '@mui/material';
 import { auth, requestDeposit, requestWithdraw, getUser } from '../firebase';
 
-const DepositWithdrawForm = ({ onClose }) => {
+const DepositWithdrawForm = ({ onClose, onShowToast }) => {
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
   const [transactionType, setTransactionType] = useState('deposit');
   const [userBalance, setUserBalance] = useState(0);
-  const [openToast, setOpenToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -43,7 +41,6 @@ const DepositWithdrawForm = ({ onClose }) => {
 
     if (!user.discordUsername || !user.obkUsername) {
       setMessage('Discord and OBK usernames are required');
-      setOpenToast(true);
       return;
     }
 
@@ -51,13 +48,12 @@ const DepositWithdrawForm = ({ onClose }) => {
       const userId = auth.currentUser.uid;
       if (transactionType === 'deposit') {
         await requestDeposit(userId, numAmount, user.discordUsername, user.obkUsername);
-        setToastMessage('Deposit request submitted successfully');
+        onShowToast('Deposit request submitted successfully and is pending');
       } else {
         await requestWithdraw(userId, numAmount, user.discordUsername, user.obkUsername); // Keep value positive for request
-        setToastMessage('Withdraw request submitted successfully');
+        onShowToast('Withdraw request submitted successfully and is pending');
       }
       setAmount('');
-      setOpenToast(true);
       onClose();
     } catch (error) {
       setMessage('Failed to submit request');
@@ -69,11 +65,6 @@ const DepositWithdrawForm = ({ onClose }) => {
       setTransactionType(newType);
       setMessage(''); // Clear the message when toggling
     }
-  };
-
-  const handleCloseToast = () => {
-    setOpenToast(false);
-    setToastMessage('');
   };
 
   return (
@@ -133,12 +124,6 @@ const DepositWithdrawForm = ({ onClose }) => {
         Submit
       </Button>
       {message && <Typography color="error" sx={{ marginTop: 2 }}>{message}</Typography>}
-      <Snackbar
-        open={openToast}
-        autoHideDuration={6000}
-        onClose={handleCloseToast}
-        message={toastMessage}
-      />
     </Box>
   );
 };
