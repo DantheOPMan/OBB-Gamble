@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApprovedTransactions, getUser } from '../firebase'; // Assuming getUser fetches user details
-import { Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+import { Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, TextField, Box } from '@mui/material';
 
 const ApprovedTransactionsPage = () => {
   const [groupedTransactions, setGroupedTransactions] = useState({});
   const [userDetails, setUserDetails] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -41,18 +42,50 @@ const ApprovedTransactionsPage = () => {
     fetchTransactions();
   }, []);
 
+  const handleSearchChange = (event) => {
+    setSearchQuery(event.target.value);
+  };
+
+  const filteredUsers = Object.keys(groupedTransactions).filter(userId => {
+    const user = userDetails[userId];
+    if (!user) return false;
+    const username = user.username ? user.username.toLowerCase() : '';
+    const discordUsername = user.discordUsername ? user.discordUsername.toLowerCase() : '';
+    const obkUsername = user.obkUsername ? user.obkUsername.toLowerCase() : '';
+    const query = searchQuery.toLowerCase();
+    return username.includes(query) || discordUsername.includes(query) || obkUsername.includes(query);
+  });
+
   return (
     <div>
       <Typography variant="h6" sx={{ marginBottom: 2, textAlign: 'center' }}>
         Approved Transactions
       </Typography>
-      {Object.keys(groupedTransactions).map(userId => (
+      <Box sx={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
+        <TextField
+          label="Search Users"
+          value={searchQuery}
+          onChange={handleSearchChange}
+          variant="outlined"
+          sx={{ width: '300px' }}
+        />
+      </Box>
+      {filteredUsers.map(userId => (
         <div key={userId} style={{ marginBottom: '2rem' }}>
           <Typography variant="subtitle1" sx={{ textAlign: 'center' }}>
             User: {userDetails[userId]?.username}
           </Typography>
           <Typography variant="subtitle2" sx={{ textAlign: 'center' }}>
+            UserID: {userId}
+          </Typography>
+          <Typography variant="subtitle2" sx={{ textAlign: 'center' }}>
             Discord: {userDetails[userId]?.discordUsername}
+          </Typography>
+          <Typography variant="subtitle2" sx={{ textAlign: 'center' }}>
+            OBK Username: {userDetails[userId]?.obkUsername}
+          </Typography>
+          <Typography variant="subtitle2" sx={{ textAlign: 'center' }}>
+            Current BP Balance: {userDetails[userId]?.bpBalance}
           </Typography>
           <TableContainer component={Paper} sx={{ marginTop: 4, backgroundColor: '#424242' }}>
             <Table sx={{ backgroundColor: '#424242' }}>
