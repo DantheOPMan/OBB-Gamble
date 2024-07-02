@@ -66,13 +66,14 @@ const MarketPage = () => {
   }, [marketId]);
 
   useEffect(() => {
+    const chartInstance = chartRef.current;
     return () => {
-      const chartInstance = chartRef.current;
       if (chartInstance) {
         chartInstance.destroy();
       }
     };
   }, []);
+  
 
   const calculateTotalBPBet = (transactions) => {
     return transactions.reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
