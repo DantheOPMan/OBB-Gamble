@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { auth, signOut, getUser } from '../firebase';
-import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
+import { AppBar, Toolbar, Typography, Button, Box, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import DepositWithdrawForm from '../pages/DepositWithdrawForm';
 
 const Navbar = () => {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [openDepositWithdraw, setOpenDepositWithdraw] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -28,6 +30,18 @@ const Navbar = () => {
   const handleLogout = () => {
     signOut(auth);
     navigate('/');
+  };
+
+  const handleOpenDepositWithdraw = () => {
+    setOpenDepositWithdraw(true);
+  };
+
+  const handleCloseDepositWithdraw = () => {
+    setOpenDepositWithdraw(false);
+  };
+
+  const handleShowToast = (message) => {
+    alert(message); // Replace with Snackbar logic if needed
   };
 
   return (
@@ -91,21 +105,6 @@ const Navbar = () => {
               <Button
                 color="inherit"
                 component={Link}
-                to="/profile"
-                sx={{
-                  padding: '10px 16px',
-                  fontSize: '16px',
-                  '&:hover': {
-                    backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
-                  },
-                  flex: '1 1 100px',
-                }}
-              >
-                Profile
-              </Button>
-              <Button
-                color="inherit"
-                component={Link}
                 to="/tips"
                 sx={{
                   padding: '10px 16px',
@@ -117,6 +116,35 @@ const Navbar = () => {
                 }}
               >
                 Tips
+              </Button>
+              <Button
+                color="inherit"
+                onClick={handleOpenDepositWithdraw}
+                sx={{
+                  padding: '10px 16px',
+                  fontSize: '16px',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
+                  },
+                  flex: '1 1 100px',
+                }}
+              >
+                Deposit
+              </Button>
+              <Button
+                color="inherit"
+                component={Link}
+                to="/profile"
+                sx={{
+                  padding: '10px 16px',
+                  fontSize: '16px',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
+                  },
+                  flex: '1 1 100px',
+                }}
+              >
+                Profile
               </Button>
               <Button
                 color="inherit"
@@ -136,6 +164,17 @@ const Navbar = () => {
           )}
         </Box>
       </Toolbar>
+      <Dialog open={openDepositWithdraw} onClose={handleCloseDepositWithdraw}>
+        <DialogTitle sx={{ bgcolor: '#333', color: '#fff' }}>Deposit/Withdraw BP</DialogTitle>
+        <DialogContent sx={{ bgcolor: '#333', color: '#fff' }}>
+          <DepositWithdrawForm onClose={handleCloseDepositWithdraw} onShowToast={handleShowToast} />
+        </DialogContent>
+        <DialogActions sx={{ bgcolor: '#333', color: '#fff' }}>
+          <Button onClick={handleCloseDepositWithdraw} color="primary" sx={{ color: '#ff7961' }}>
+            Cancel
+          </Button>
+        </DialogActions>
+      </Dialog>
     </AppBar>
   );
 };

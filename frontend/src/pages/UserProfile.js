@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { getUser, updateUser, auth } from '../firebase';
 import { Container, Box, Typography, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Snackbar } from '@mui/material';
-import DepositWithdrawForm from './DepositWithdrawForm';
 
 const UserProfile = () => {
   const [userData, setUserData] = useState(null);
   const [openUpdateUsernames, setOpenUpdateUsernames] = useState(false);
-  const [openDepositWithdraw, setOpenDepositWithdraw] = useState(false);
   const [discordUsername, setDiscordUsername] = useState('');
   const [obkUsername, setObkUsername] = useState('');
   const [openToast, setOpenToast] = useState(false);
@@ -37,14 +35,6 @@ const UserProfile = () => {
 
   const handleCloseUpdateUsernames = () => {
     setOpenUpdateUsernames(false);
-  };
-
-  const handleOpenDepositWithdraw = () => {
-    setOpenDepositWithdraw(true);
-  };
-
-  const handleCloseDepositWithdraw = () => {
-    setOpenDepositWithdraw(false);
   };
 
   const handleUpdateUsernames = async () => {
@@ -111,14 +101,6 @@ const UserProfile = () => {
         >
           Update Usernames
         </Button>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={handleOpenDepositWithdraw}
-          sx={{ mt: 3, backgroundColor: '#ff7961' }}
-        >
-          Deposit/Withdraw BP
-        </Button>
       </Box>
       <Dialog open={openUpdateUsernames} onClose={handleCloseUpdateUsernames}>
         <DialogTitle sx={{ bgcolor: '#333', color: '#fff' }}>Update Usernames</DialogTitle>
@@ -152,17 +134,6 @@ const UserProfile = () => {
           </Button>
           <Button onClick={handleUpdateUsernames} color="primary" sx={{ color: '#ff7961' }}>
             Save
-          </Button>
-        </DialogActions>
-      </Dialog>
-      <Dialog open={openDepositWithdraw} onClose={handleCloseDepositWithdraw}>
-        <DialogTitle sx={{ bgcolor: '#333', color: '#fff' }}>Deposit/Withdraw BP</DialogTitle>
-        <DialogContent sx={{ bgcolor: '#333', color: '#fff' }}>
-          <DepositWithdrawForm onClose={handleCloseDepositWithdraw} onShowToast={handleShowToast} />
-        </DialogContent>
-        <DialogActions sx={{ bgcolor: '#333', color: '#fff' }}>
-          <Button onClick={handleCloseDepositWithdraw} color="primary" sx={{ color: '#ff7961' }}>
-            Cancel
           </Button>
         </DialogActions>
       </Dialog>
