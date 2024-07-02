@@ -71,6 +71,12 @@ const MarketPage = () => {
     };
   }, []);
 
+  const calculateTotalBPBet = (transactions) => {
+    return transactions.reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
+  };
+
+  const totalBPBet = calculateTotalBPBet(betTransactions);
+
   const calculateLikelihoods = (competitors) => {
     const totalValue = competitors.reduce((sum, competitor) => sum + competitor.value, 0) || 1;
     return competitors.map(competitor => ({
@@ -180,8 +186,11 @@ const MarketPage = () => {
       >
         <Grid container spacing={2} justifyContent="center">
           <Grid item xs={12} sm={5} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Typography component="h1" variant="h5" sx={{ marginBottom: 4, textAlign: 'center' }}>
+            <Typography component="h1" variant="h5" sx={{ marginBottom: 1, textAlign: 'center' }}>
               {marketData.name || 'Market'}
+            </Typography>
+            <Typography variant="body2" sx={{ marginBottom: 4, textAlign: 'center' }}>
+              Total BP Bet: {totalBPBet} BP
             </Typography>
             {marketData.status && (
               <Typography
@@ -197,7 +206,7 @@ const MarketPage = () => {
                 {marketData.status.toUpperCase()}
               </Typography>
             )}
-            {marketData.wwinner && (
+            {marketData.winner && (
               <Typography
                 variant="body1"
                 sx={{
