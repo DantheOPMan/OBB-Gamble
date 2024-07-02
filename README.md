@@ -21,7 +21,7 @@ Oh Baby Markets is a betting platform where users can place bets on various mark
 
 ## Live Demo
 
-Oh Baby Markets is currently live at: <a href="https://obb-markets-559dc43643a5.herokuapp.com/" target="_blank">Oh Baby Markets is currently live at: https://obb-markets-559dc43643a5.herokuapp.com/</a>
+Oh Baby Markets is currently live at: <a href="https://obb-markets-559dc43643a5.herokuapp.com/" target="_blank">https://obb-markets-559dc43643a5.herokuapp.com/</a>
 
 
 ## Installation
