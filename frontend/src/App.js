@@ -11,6 +11,7 @@ import UserProfile from './pages/UserProfile';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminApprovalPage from './pages/AdminApprovalPage';
+import TippingPage from './pages/TippingPage'; // Import the new AdminTipsPage
 import AuthenticatedRoute from './components/AuthenticatedRoute';
 import theme from './theme';
 
@@ -27,6 +28,7 @@ const App = () => {
               <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/admin/approvals" element={<AdminApprovalPage />} />
+                <Route path="/tips" element={<TippingPage />} />
               </Route>
               <Route path="/markets/:marketId" element={<MarketPage />} />
               <Route path="/markets" element={<MarketsPage />} />

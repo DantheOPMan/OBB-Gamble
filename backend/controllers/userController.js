@@ -53,9 +53,18 @@ const updateUser = async (req, res) => {
   }
 };
 
+const getUsers = async (req, res) => {
+  try {
+    const users = await User.find({}, 'uid username discordUsername obkUsername'); // Select only necessary fields
+    res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
 module.exports = {
   registerUser,
   getUser,
   updateUser,
+  getUsers
 };

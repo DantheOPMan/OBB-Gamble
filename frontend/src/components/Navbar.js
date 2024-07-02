@@ -1,8 +1,7 @@
-// src/components/Navbar.js
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { auth, signOut, getUser } from '../firebase';
-import { AppBar, Toolbar, Typography, Button } from '@mui/material';
+import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 
 const Navbar = () => {
   const [user, setUser] = useState(null);
@@ -37,15 +36,107 @@ const Navbar = () => {
         <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
           Oh Baby Markets
         </Typography>
-        {!user && <Button color="inherit" component={Link} to="/">Login</Button>}
-        {user && (
-          <>
-            {isAdmin && <Button color="inherit" component={Link} to="/admin">Admin</Button>}
-            <Button color="inherit" component={Link} to="/markets">Markets</Button>
-            <Button color="inherit" component={Link} to="/profile">Profile</Button>
-            <Button color="inherit" onClick={handleLogout}>Logout</Button>
-          </>
-        )}
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          {!user && (
+            <Button
+              color="inherit"
+              component={Link}
+              to="/"
+              sx={{
+                padding: '10px 16px',
+                fontSize: '16px',
+                '&:hover': {
+                  backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
+                },
+                flex: '1 1 100px',
+              }}
+            >
+              Login
+            </Button>
+          )}
+          {user && (
+            <>
+              {isAdmin && (
+                <Button
+                  color="inherit"
+                  component={Link}
+                  to="/admin"
+                  sx={{
+                    padding: '10px 16px',
+                    fontSize: '16px',
+                    '&:hover': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
+                    },
+                    flex: '1 1 100px',
+                  }}
+                >
+                  Admin
+                </Button>
+              )}
+              <Button
+                color="inherit"
+                component={Link}
+                to="/markets"
+                sx={{
+                  padding: '10px 16px',
+                  fontSize: '16px',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
+                  },
+                  flex: '1 1 100px',
+                }}
+              >
+                Markets
+              </Button>
+              <Button
+                color="inherit"
+                component={Link}
+                to="/profile"
+                sx={{
+                  padding: '10px 16px',
+                  fontSize: '16px',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
+                  },
+                  flex: '1 1 100px',
+                }}
+              >
+                Profile
+              </Button>
+              {isAdmin && (
+                <Button
+                  color="inherit"
+                  component={Link}
+                  to="/tips"
+                  sx={{
+                    padding: '10px 16px',
+                    fontSize: '16px',
+                    '&:hover': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
+                    },
+                    flex: '1 1 100px',
+                  }}
+                >
+                  Tips
+                </Button>
+              )}
+              <Button
+                color="inherit"
+                onClick={handleLogout}
+                sx={{
+                  padding: '10px 16px',
+                  fontSize: '16px',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
+                  },
+                  flex: '1 1 100px',
+                }}
+              >
+                Logout
+              </Button>
+            </>
+          )}
+        </Box>
       </Toolbar>
     </AppBar>
   );

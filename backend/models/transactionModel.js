@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const transactionSchema = new mongoose.Schema({
   userId: { type: String, required: true },
+  targetUserId: { type: String },
   amount: { type: Number, required: true },
   marketId: { type: mongoose.Schema.Types.ObjectId, ref: 'Market' },
   competitorName: { type: String },
@@ -10,6 +11,7 @@ const transactionSchema = new mongoose.Schema({
   obkUsername: { type: String, required: true },
   timestamp: { type: Date, default: Date.now },
 });
+
 
 const Transaction = mongoose.model('Transaction', transactionSchema);
 

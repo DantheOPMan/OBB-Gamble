@@ -126,4 +126,24 @@ const getBetTransactions = async (marketId) => {
   }
 };
 
-export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, fetchApprovedTransactions, createMarket, getMarkets, pauseMarket, closeMarket, resumeMarket, getMarketById, placeBet, getBetTransactions };
+const requestTip = async ({ userId, targetUserId, amount, discordUsername, obkUsername }) => {
+  return makeRequest('/api/transactions/tip', 'POST', { userId, targetUserId, amount, discordUsername, obkUsername });
+};
+
+const fetchPendingTips = async () => {
+  return makeRequest('/api/transactions/pending', 'GET');
+};
+
+const approveTip = async (transactionId) => {
+  return makeRequest(`/api/transactions/approveTip/${transactionId}`, 'PUT');
+};
+
+const rejectTip = async (transactionId) => {
+  return makeRequest(`/api/transactions/rejectTip/${transactionId}`, 'PUT');
+};
+
+const fetchUsers = async () => {
+  return makeRequest('/api/users', 'GET');
+};
+
+export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, fetchApprovedTransactions, createMarket, getMarkets, pauseMarket, closeMarket, resumeMarket, getMarketById, placeBet, getBetTransactions, requestTip, fetchPendingTips, approveTip, rejectTip, fetchUsers };

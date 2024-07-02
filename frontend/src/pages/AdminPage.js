@@ -4,11 +4,13 @@ import AdminApprovalPage from './AdminApprovalPage';
 import CloseMarketPage from './CloseMarketPage';
 import CreateMarketPage from './CreateMarketPage';
 import ApprovedTransactionsPage from './ApprovedTransactionsPage';
-import { fetchPendingTransactions, approveTransaction, rejectTransaction } from '../firebase';
+import AdminTipsPage from './AdminTipsPage'; // Import the new AdminTipsPage
+import { fetchPendingTransactions, approveTransaction, rejectTransaction, fetchPendingTips, approveTip, rejectTip } from '../firebase';
 
 const AdminPage = () => {
   const [currentSection, setCurrentSection] = useState('create');
   const [transactions, setTransactions] = useState([]);
+  const [tips, setTips] = useState([]); // State for tips
   const [toastMessage, setToastMessage] = useState('');
   const [openToast, setOpenToast] = useState(false);
 
@@ -22,7 +24,17 @@ const AdminPage = () => {
       }
     };
 
+    const fetchTips = async () => {
+      try {
+        const response = await fetchPendingTips();
+        setTips(response);
+      } catch (error) {
+        console.error('Failed to fetch tips', error);
+      }
+    };
+
     fetchTransactions();
+    fetchTips(); // Fetch tips on load
   }, []);
 
   const handleApprove = async (transactionId) => {
@@ -51,6 +63,32 @@ const AdminPage = () => {
     }
   };
 
+  const handleApproveTip = async (transactionId) => {
+    try {
+      await approveTip(transactionId);
+      setTips(tips.filter((transaction) => transaction._id !== transactionId));
+      setToastMessage('Tip approved');
+      setOpenToast(true);
+    } catch (error) {
+      console.error('Failed to approve tip', error);
+      setToastMessage('Failed to approve tip');
+      setOpenToast(true);
+    }
+  };
+
+  const handleRejectTip = async (transactionId) => {
+    try {
+      await rejectTip(transactionId);
+      setTips(tips.filter((transaction) => transaction._id !== transactionId));
+      setToastMessage('Tip rejected');
+      setOpenToast(true);
+    } catch (error) {
+      console.error('Failed to reject tip', error);
+      setToastMessage('Failed to reject tip');
+      setOpenToast(true);
+    }
+  };
+
   const handleCloseToast = () => {
     setOpenToast(false);
   };
@@ -66,20 +104,89 @@ const AdminPage = () => {
           bgcolor: 'background.default',
           padding: 4,
           borderRadius: 2,
+          width:'100%',
         }}
       >
-        <Box sx={{ display: 'flex', mb: 4 }}>
-          <Button variant="contained" onClick={() => setCurrentSection('create')} sx={{ mr: 2 }}>
+        <Box sx={{ display: 'flex', mb: 4, justifyContent: 'space-between', width: '100%' }}>
+          <Button
+            variant="contained"
+            onClick={() => setCurrentSection('create')}
+            sx={{
+              flex: 1,
+              marginRight: 1,
+              padding: '10px 0',
+              fontSize: '14px',
+              minWidth: 0,
+              '&:last-child': {
+                marginRight: 0,
+              },
+            }}
+          >
             Create Market
           </Button>
-          <Button variant="contained" onClick={() => setCurrentSection('close')} sx={{ mr: 2 }}>
+          <Button
+            variant="contained"
+            onClick={() => setCurrentSection('close')}
+            sx={{
+              flex: 1,
+              marginRight: 1,
+              padding: '10px 0',
+              fontSize: '14px',
+              minWidth: 0,
+              '&:last-child': {
+                marginRight: 0,
+              },
+            }}
+          >
             Close Market
           </Button>
-          <Button variant="contained" onClick={() => setCurrentSection('approve')} sx={{ mr: 2 }}>
+          <Button
+            variant="contained"
+            onClick={() => setCurrentSection('approve')}
+            sx={{
+              flex: 1,
+              marginRight: 1,
+              padding: '10px 0',
+              fontSize: '14px',
+              minWidth: 0,
+              '&:last-child': {
+                marginRight: 0,
+              },
+            }}
+          >
             Admin Approval
           </Button>
-          <Button variant="contained" onClick={() => setCurrentSection('approvedTransactions')}>
+          <Button
+            variant="contained"
+            onClick={() => setCurrentSection('approvedTransactions')}
+            sx={{
+              flex: 1,
+              marginRight: 1,
+              padding: '10px 0',
+              fontSize: '14px',
+              minWidth: 0,
+              '&:last-child': {
+                marginRight: 0,
+              },
+            }}
+          >
             Approved Transactions
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => setCurrentSection('tips')}
+            sx={{
+              flex: 1,
+              marginRight: 1,
+              padding: '10px 0',
+              fontSize: '14px',
+              minWidth: 0,
+              '&:last-child': {
+                marginRight: 0,
+              },
+            }}
+          >
+            Tips
           </Button>
         </Box>
 
@@ -93,6 +200,13 @@ const AdminPage = () => {
           />
         )}
         {currentSection === 'approvedTransactions' && <ApprovedTransactionsPage />}
+        {currentSection === 'tips' && (
+          <AdminTipsPage
+            transactions={tips}
+            handleApprove={handleApproveTip}
+            handleReject={handleRejectTip}
+          />
+        )}
       </Box>
 
       <Snackbar
