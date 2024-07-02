@@ -49,7 +49,7 @@ const TippingPage = () => {
     }
 
     try {
-      await requestTip({ userId: auth.currentUser.uid, targetUserId: targetUser.uid, amount: Number(amount), discordUsername: auth.currentUser.displayName, obkUsername: auth.currentUser.email });
+      await requestTip({ userId: auth.currentUser.uid, targetUserId: targetUser.uid, amount: Number(amount), discordUsername: auth.currentUser.discordUsername, obkUsername: auth.currentUser.obkUsername });
       setMessage(`Tip of ${amount} BP requested successfully`);
       setOpenToast(true);
       setAmount('');
