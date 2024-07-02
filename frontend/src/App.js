@@ -28,8 +28,8 @@ const App = () => {
               <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/admin/approvals" element={<AdminApprovalPage />} />
-                <Route path="/tips" element={<TippingPage />} />
               </Route>
+              <Route path="/tips" element={<TippingPage />} />
               <Route path="/markets/:marketId" element={<MarketPage />} />
               <Route path="/markets" element={<MarketsPage />} />
               <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />

@@ -103,23 +103,21 @@ const Navbar = () => {
               >
                 Profile
               </Button>
-              {isAdmin && (
-                <Button
-                  color="inherit"
-                  component={Link}
-                  to="/tips"
-                  sx={{
-                    padding: '10px 16px',
-                    fontSize: '16px',
-                    '&:hover': {
-                      backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
-                    },
-                    flex: '1 1 100px',
-                  }}
-                >
-                  Tips
-                </Button>
-              )}
+              <Button
+                color="inherit"
+                component={Link}
+                to="/tips"
+                sx={{
+                  padding: '10px 16px',
+                  fontSize: '16px',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
+                  },
+                  flex: '1 1 100px',
+                }}
+              >
+                Tips
+              </Button>
               <Button
                 color="inherit"
                 onClick={handleLogout}
