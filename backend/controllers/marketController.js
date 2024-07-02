@@ -158,7 +158,9 @@ const getMarketById = async (req, res) => {
 const placeBet = async (req, res) => {
   const { marketId } = req.params;
   const { userId, amount, competitorName = '' } = req.body;
-
+  if (userId !== req.user.uid) {
+    return res.status(403).json({ message: 'Forbidden: Cannot perform this action for another user' });
+  }
   try {
     const market = await Market.findById(marketId);
     if (!market) {

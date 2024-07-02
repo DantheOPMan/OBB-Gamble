@@ -1,4 +1,3 @@
-// backend/controllers/userController.js
 const User = require('../models/userModel');
 const Transaction = require('../models/transactionModel');  // Import the Transaction model
 
@@ -21,7 +20,9 @@ const registerUser = async (req, res) => {
 
 const getUser = async (req, res) => {
   const { uid } = req.params;
-
+  if (uid !== req.user.uid && req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Forbidden: Cannot access another user\'s data' });
+  }
   try {
     const user = await User.findOne({ uid });
 
@@ -38,7 +39,9 @@ const getUser = async (req, res) => {
 const updateUser = async (req, res) => {
   const { uid } = req.params;
   const { discordUsername, obkUsername } = req.body;
-
+  if (uid !== req.user.uid) {
+    return res.status(403).json({ message: 'Forbidden: Cannot update another user\'s data' });
+  }
   try {
     const user = await User.findOneAndUpdate(
       { uid },
@@ -65,7 +68,11 @@ const getUsers = async (req, res) => {
 
 const getUserTransactions = async (req, res) => {
   const { uid } = req.params;
-
+  
+  if (uid !== req.user.uid && req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Forbidden: Cannot access another user\'s transactions' });
+  }
+  
   try {
     const transactions = await Transaction.find({ userId: uid });
     res.status(200).json(transactions);

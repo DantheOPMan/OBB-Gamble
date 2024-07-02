@@ -7,7 +7,9 @@ const requestDeposit = async (req, res) => {
   if (!userId || !amount || !discordUsername || !obkUsername) {
     return res.status(400).json({ message: 'User ID, amount, Discord username, and OBK username are required' });
   }
-
+  if (userId !== req.user.uid) {
+    return res.status(403).json({ message: 'Forbidden: Cannot perform this action for another user' });
+  }
   try {
     const user = await User.findOne({ uid: userId });  // Use findOne with uid
     if (!user) {
@@ -38,7 +40,9 @@ const requestWithdraw = async (req, res) => {
   if (!userId || !amount || !discordUsername || !obkUsername) {
     return res.status(400).json({ message: 'User ID, amount, Discord username, and OBK username are required' });
   }
-
+  if (userId !== req.user.uid) {
+    return res.status(403).json({ message: 'Forbidden: Cannot perform this action for another user' });
+  }
   try {
     const user = await User.findOne({ uid: userId });  // Use findOne with uid
     if (!user) {
@@ -137,7 +141,9 @@ const requestTip = async (req, res) => {
   if (!userId || !targetUserId || !amount || !discordUsername || !obkUsername) {
     return res.status(400).json({ message: 'User ID, target user ID, amount, Discord username, and OBK username are required' });
   }
-
+  if (userId !== req.user.uid) {
+    return res.status(403).json({ message: 'Forbidden: Cannot perform this action for another user' });
+  }
   try {
     const user = await User.findOne({ uid: userId });
     if (!user) {
@@ -173,6 +179,10 @@ const approveTip = async (req, res) => {
     const transaction = await Transaction.findById(transactionId);
     if (!transaction) {
       return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    if(transaction.status != 'pending'){
+      return res.status(404).json({ message: 'Transaction is already confirmed/rejected' });
     }
 
     const user = await User.findOne({ uid: transaction.userId });
@@ -214,6 +224,10 @@ const rejectTip = async (req, res) => {
     const transaction = await Transaction.findById(transactionId);
     if (!transaction) {
       return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    if(transaction.status != 'pending'){
+      return res.status(404).json({ message: 'Transaction is already confirmed/rejected' });
     }
 
     const user = await User.findOne({ uid: transaction.userId });

@@ -12,6 +12,6 @@ router.put('/rejectTip/:transactionId', verifyToken, isAdmin, rejectTip);
 router.put('/approve/:transactionId', verifyToken, isAdmin, approveTransaction);
 router.put('/reject/:transactionId', verifyToken, isAdmin, rejectTransaction);
 router.get('/pending', verifyToken, isAdmin, getPendingTransactions);
-router.get('/approved', verifyToken, isAdmin, getApprovedTransactions); // Add this line
+router.get('/approved', verifyToken, isAdmin, getApprovedTransactions);
 
 module.exports = router;
