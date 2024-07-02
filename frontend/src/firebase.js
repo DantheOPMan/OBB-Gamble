@@ -146,4 +146,8 @@ const fetchUsers = async () => {
   return makeRequest('/api/users', 'GET');
 };
 
-export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, fetchApprovedTransactions, createMarket, getMarkets, pauseMarket, closeMarket, resumeMarket, getMarketById, placeBet, getBetTransactions, requestTip, fetchPendingTips, approveTip, rejectTip, fetchUsers };
+const fetchUserTransactions = async (userId) => {
+  return makeRequest(`/api/users/${userId}/transactions`, 'GET');
+};
+
+export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, fetchApprovedTransactions, createMarket, getMarkets, pauseMarket, closeMarket, resumeMarket, getMarketById, placeBet, getBetTransactions, requestTip, fetchPendingTips, approveTip, rejectTip, fetchUsers, fetchUserTransactions };

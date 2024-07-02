@@ -1,5 +1,6 @@
 // backend/controllers/userController.js
 const User = require('../models/userModel');
+const Transaction = require('../models/transactionModel');  // Import the Transaction model
 
 const registerUser = async (req, res) => {
   const { uid, email } = req.body;
@@ -62,9 +63,21 @@ const getUsers = async (req, res) => {
   }
 };
 
+const getUserTransactions = async (req, res) => {
+  const { uid } = req.params;
+
+  try {
+    const transactions = await Transaction.find({ userId: uid });
+    res.status(200).json(transactions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   registerUser,
   getUser,
   updateUser,
-  getUsers
+  getUsers,
+  getUserTransactions
 };
