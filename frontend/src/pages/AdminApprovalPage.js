@@ -17,20 +17,22 @@ const AdminApprovalPage = ({ transactions, handleApprove, handleReject }) => (
       Pending Transactions
     </Typography>
     <List>
-      {transactions.map((transaction) => (
-        <ListItem key={transaction._id}>
-          <ListItemText
-            primary={`User: ${transaction.userId}, Amount: ${transaction.amount}, Market: ${transaction.marketName || 'N/A'}, Discord: ${transaction.discordUsername}, OBK: ${transaction.obkUsername}`}
-            secondary={`Requested on: ${new Date(transaction.timestamp).toLocaleString()}`}
-          />
-          <Button variant="contained" color="primary" onClick={() => handleApprove(transaction._id)}>
-            Approve
-          </Button>
-          <Button variant="contained" color="secondary" onClick={() => handleReject(transaction._id)}>
-            Reject
-          </Button>
-        </ListItem>
-      ))}
+      {transactions
+        .filter(transaction => !transaction.targetUserId)
+        .map((transaction) => (
+          <ListItem key={transaction._id}>
+            <ListItemText
+              primary={`User: ${transaction.userId}, Amount: ${transaction.amount}, Market: ${transaction.marketName || 'N/A'}, Discord: ${transaction.discordUsername}, OBK: ${transaction.obkUsername}`}
+              secondary={`Requested on: ${new Date(transaction.timestamp).toLocaleString()}`}
+            />
+            <Button variant="contained" color="primary" onClick={() => handleApprove(transaction._id)}>
+              Approve
+            </Button>
+            <Button variant="contained" color="secondary" onClick={() => handleReject(transaction._id)}>
+              Reject
+            </Button>
+          </ListItem>
+        ))}
     </List>
   </Box>
 );

@@ -9,7 +9,7 @@ const AdminTipsPage = ({ transactions = [], handleApprove, handleReject }) => {
     const fetchUserDetails = async () => {
       const details = {};
       for (const transaction of transactions) {
-        if (!details[transaction.targetUserId]) {
+        if (transaction.targetUserId && !details[transaction.targetUserId]) {
           const userInfo = await getUser(transaction.targetUserId);
           details[transaction.targetUserId] = userInfo;
         }
@@ -38,7 +38,7 @@ const AdminTipsPage = ({ transactions = [], handleApprove, handleReject }) => {
         Pending Tips
       </Typography>
       <List sx={{ width: '100%' }}>
-        {transactions.map((transaction) => {
+        {transactions.filter(transaction => transaction.targetUserId).map((transaction) => {
           const targetUser = userDetails[transaction.targetUserId] || {};
           return (
             <ListItem
