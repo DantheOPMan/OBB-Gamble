@@ -90,8 +90,8 @@ const closeMarket = async (req, res) => {
       const adminTransaction = new Transaction({
         userId: admin.uid,
         amount: adminFeePerUser,
-        marketId: 'Payout',
-        competitorName: 'Admin Fee',
+        marketId: market._id,
+        competitorName: 'AdminFee',
         status: 'approved',
         discordUsername: admin.discordUsername,
         obkUsername: admin.obkUsername
@@ -117,8 +117,8 @@ const closeMarket = async (req, res) => {
             const payoutTransaction = new Transaction({
               userId: user.uid,
               amount: userPayout,
-              marketId: 'Payout',
-              competitorName: winner,
+              marketId: market._id,
+              competitorName: 'Payout',
               status: 'approved',
               discordUsername: user.discordUsername,
               obkUsername: user.obkUsername

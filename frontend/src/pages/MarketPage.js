@@ -49,7 +49,10 @@ const MarketPage = () => {
         setMarketData(data);
 
         const transactions = await getBetTransactions(marketId);
-        setBetTransactions(Array.isArray(transactions) ? transactions : []);
+        const filteredTransactions = transactions.filter(
+          (transaction) => transaction.competitorName !== 'AdminFee' && transaction.competitorName !== 'Payout'
+        );
+        setBetTransactions(Array.isArray(filteredTransactions) ? filteredTransactions : []);
 
         const currentUser = await getUser(auth.currentUser.uid);
         setUserBP(currentUser.bpBalance);
@@ -158,7 +161,10 @@ const MarketPage = () => {
       setSelectedCompetitor('');
 
       const transactions = await getBetTransactions(marketId);
-      setBetTransactions(Array.isArray(transactions) ? transactions : []);
+      const filteredTransactions = transactions.filter(
+        (transaction) => transaction.competitorName !== 'AdminFee' && transaction.competitorName !== 'Payout'
+      );
+      setBetTransactions(Array.isArray(filteredTransactions) ? filteredTransactions : []);
     } catch (error) {
       setMessage('Failed to place bet');
       setOpenToast(true);
