@@ -8,13 +8,14 @@ const TippingPage = () => {
   const [users, setUsers] = useState([]);
   const [message, setMessage] = useState('');
   const [openToast, setOpenToast] = useState(false);
-  const [currentUserBP, setCurrentUserBP] = useState(0);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     const loadUsers = async () => {
       try {
         const usersList = await fetchUsers();
-        // Filter out users without obkUsername or users that match the current user's uid
+        const currentUserData = await getUser(auth.currentUser.uid);
+        setCurrentUser(currentUserData);
         const validUsers = usersList.filter(user => user.obkUsername && user.uid !== auth.currentUser.uid);
         setUsers(validUsers);
       } catch (error) {
@@ -22,17 +23,7 @@ const TippingPage = () => {
       }
     };
 
-    const loadCurrentUser = async () => {
-      try {
-        const currentUserData = await getUser(auth.currentUser.uid);
-        setCurrentUserBP(currentUserData.bpBalance);
-      } catch (error) {
-        console.error('Failed to fetch current user data', error);
-      }
-    };
-
     loadUsers();
-    loadCurrentUser();
   }, []);
 
   const handleTip = async () => {
@@ -48,8 +39,20 @@ const TippingPage = () => {
       return;
     }
 
+    if (!currentUser.discordUsername || !currentUser.obkUsername) {
+      setMessage('Current user must have a Discord username and an OBK username');
+      setOpenToast(true);
+      return;
+    }
+
     try {
-      await requestTip({ userId: auth.currentUser.uid, targetUserId: targetUser.uid, amount: Number(amount), discordUsername: auth.currentUser.discordUsername, obkUsername: auth.currentUser.obkUsername });
+      await requestTip({ 
+        userId: auth.currentUser.uid, 
+        targetUserId: targetUser.uid, 
+        amount: Number(amount), 
+        discordUsername: currentUser.discordUsername, 
+        obkUsername: currentUser.obkUsername 
+      });
       setMessage(`Tip of ${amount} BP requested successfully`);
       setOpenToast(true);
       setAmount('');
@@ -72,7 +75,7 @@ const TippingPage = () => {
           Tip a User
         </Typography>
         <Typography variant="body1" sx={{ marginBottom: 2, color: 'white' }}>
-          Your BP: {currentUserBP}
+          Your BP: {currentUser?.bpBalance || 0}
         </Typography>
         <Autocomplete
           options={users}
