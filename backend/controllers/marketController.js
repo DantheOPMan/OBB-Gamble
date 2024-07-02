@@ -90,7 +90,7 @@ const closeMarket = async (req, res) => {
       const adminTransaction = new Transaction({
         userId: admin.uid,
         amount: adminFeePerUser,
-        marketId: market._id,
+        marketId: 'Payout',
         competitorName: 'Admin Fee',
         status: 'approved',
         discordUsername: admin.discordUsername,
@@ -102,7 +102,7 @@ const closeMarket = async (req, res) => {
     }
 
     if (totalWinningBets === 0) {
-      const netPoolPerAdmin = netPool / adminUsers.length;
+      const netPoolPerAdmin = Math.floor(netPool / adminUsers.length);
       for (const admin of adminUsers) {
         admin.bpBalance += netPoolPerAdmin;
         await admin.save();
@@ -112,13 +112,12 @@ const closeMarket = async (req, res) => {
         if (transaction.competitorName === winner) {
           const user = await User.findOne({ uid: transaction.userId });
           if (user) {
-            const userPayout = (Math.abs(transaction.amount) / totalWinningBets) * netPool;
+            const userPayout = Math.round((Math.abs(transaction.amount) / totalWinningBets) * netPool);
             user.bpBalance += userPayout;
-
             const payoutTransaction = new Transaction({
               userId: user.uid,
               amount: userPayout,
-              marketId: market._id,
+              marketId: 'Payout',
               competitorName: winner,
               status: 'approved',
               discordUsername: user.discordUsername,
