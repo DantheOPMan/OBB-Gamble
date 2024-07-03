@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApprovedTransactions, getUser } from '../firebase'; // Assuming getUser fetches user details
-import { Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, TextField, Box } from '@mui/material';
+import { Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, TextField, Box, Button } from '@mui/material';
+import * as XLSX from 'xlsx';
 
 const ApprovedTransactionsPage = () => {
   const [groupedTransactions, setGroupedTransactions] = useState({});
@@ -12,7 +13,7 @@ const ApprovedTransactionsPage = () => {
       try {
         const response = await fetchApprovedTransactions();
         const filteredTransactions = response.filter(
-          (transaction) => !transaction.competitorName && !transaction.marketId
+          (transaction) => !transaction.competitorName && !transaction.marketId && !transaction.targetUserId
         );
 
         // Group transactions by userId
@@ -56,6 +57,30 @@ const ApprovedTransactionsPage = () => {
     return username.includes(query) || discordUsername.includes(query) || obkUsername.includes(query);
   });
 
+  const handleDownload = () => {
+    const transactionsData = [];
+    filteredUsers.forEach(userId => {
+      groupedTransactions[userId].forEach(transaction => {
+        const user = userDetails[userId];
+        transactionsData.push({
+          Username: user?.username || '',
+          UserID: userId,
+          Discord: user?.discordUsername || '',
+          'OBK Username': user?.obkUsername || '',
+          'BP Balance': user?.bpBalance || '',
+          Amount: transaction.amount,
+          Timestamp: new Date(transaction.timestamp).toLocaleString()
+        });
+      });
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(transactionsData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+
+    XLSX.writeFile(workbook, 'approved_transactions.xlsx');
+  };
+
   return (
     <div>
       <Typography variant="h6" sx={{ marginBottom: 2, textAlign: 'center' }}>
@@ -69,6 +94,11 @@ const ApprovedTransactionsPage = () => {
           variant="outlined"
           sx={{ width: '300px' }}
         />
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
+        <Button variant="contained" color="primary" onClick={handleDownload}>
+          Download Transactions
+        </Button>
       </Box>
       {filteredUsers.map(userId => (
         <div key={userId} style={{ marginBottom: '2rem' }}>
