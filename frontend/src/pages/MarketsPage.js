@@ -31,6 +31,51 @@ const MarketsPage = () => {
     }));
   };
 
+  const renderMarket = (market, statusLabel = '') => {
+    const competitorsWithLikelihoods = calculateLikelihoods(market.competitors);
+    const topCompetitors = competitorsWithLikelihoods.slice(0, 5);
+
+    return (
+      <Paper
+        key={market._id}
+        component={Link}
+        to={`/markets/${market._id}`}
+        sx={{
+          width: '100%',
+          marginBottom: 2,
+          padding: 2,
+          backgroundColor: '#2c2c2c', // Dark pastel gray background
+          textDecoration: 'none',
+          color: '#FFF',
+          '&:hover': {
+            backgroundColor: '#3c3c3c', // Slightly lighter gray on hover
+          },
+        }}
+      >
+        <Typography variant="h6" sx={{ marginBottom: 1 }}>
+          {market.name} {statusLabel}
+        </Typography>
+        <List>
+          {topCompetitors.map((competitor) => (
+            <ListItem key={competitor.name}>
+              <ListItemText
+                primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
+                sx={{ color: '#FFF' }}
+              />
+            </ListItem>
+          ))}
+        </List>
+        <Typography
+          component="div"
+          variant="body2"
+          sx={{ color: '#FFF', marginTop: 1 }}
+        >
+          Continue to see all competitors
+        </Typography>
+      </Paper>
+    );
+  };
+
   return (
     <Container component="main" maxWidth="md">
       <Box
@@ -48,122 +93,58 @@ const MarketsPage = () => {
         <Typography component="h2" variant="h6" sx={{ marginTop: 2, marginBottom: 2 }}>
           Open Markets
         </Typography>
-        {openMarkets.map((market) => {
-          const competitorsWithLikelihoods = calculateLikelihoods(market.competitors);
-          return (
-            <Paper
-              key={market._id}
-              component={Link}
-              to={`/markets/${market._id}`}
-              sx={{
-                width: '100%',
-                marginBottom: 2,
-                padding: 2,
-                backgroundColor: '#2c2c2c', // Dark pastel gray background
-                textDecoration: 'none',
-                color: '#FFF',
-                '&:hover': {
-                  backgroundColor: '#3c3c3c', // Slightly lighter gray on hover
-                },
-              }}
-            >
-              <Typography variant="h6" sx={{ marginBottom: 1 }}>
-                {market.name}
-              </Typography>
-              <List>
-                {competitorsWithLikelihoods.map((competitor) => (
-                  <ListItem key={competitor.name}>
-                    <ListItemText
-                      primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
-                      sx={{ color: '#FFF' }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </Paper>
-          );
-        })}
+        {openMarkets.map((market) => renderMarket(market))}
 
         <Typography component="h2" variant="h6" sx={{ marginTop: 4, marginBottom: 2 }}>
           Paused Markets
         </Typography>
-        {pausedMarkets.map((market) => {
-          const competitorsWithLikelihoods = calculateLikelihoods(market.competitors);
-          return (
-            <Paper
-              key={market._id}
-              component={Link}
-              to={`/markets/${market._id}`}
-              sx={{
-                width: '100%',
-                marginBottom: 2,
-                padding: 2,
-                backgroundColor: '#2c2c2c', // Dark pastel gray background
-                textDecoration: 'none',
-                color: '#FFF',
-                '&:hover': {
-                  backgroundColor: '#3c3c3c', // Slightly lighter gray on hover
-                },
-              }}
-            >
-              <Typography variant="h6" sx={{ marginBottom: 1 }}>
-                {market.name} (Paused)
-              </Typography>
-              <List>
-                {competitorsWithLikelihoods.map((competitor) => (
-                  <ListItem key={competitor.name}>
-                    <ListItemText
-                      primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
-                      sx={{ color: '#FFF' }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </Paper>
-          );
-        })}
+        {pausedMarkets.map((market) => renderMarket(market, '(Paused)'))}
 
         <Typography component="h2" variant="h6" sx={{ marginTop: 4, marginBottom: 2 }}>
           Closed Markets
         </Typography>
-        {closedMarkets.map((market) => {
-          const competitorsWithLikelihoods = calculateLikelihoods(market.competitors);
-          return (
-            <Paper
-              key={market._id}
-              component={Link}
-              to={`/markets/${market._id}`}
-              sx={{
-                width: '100%',
-                marginBottom: 2,
-                padding: 2,
-                backgroundColor: '#2c2c2c', // Dark pastel gray background
-                textDecoration: 'none',
-                color: '#FFF',
-                '&:hover': {
-                  backgroundColor: '#3c3c3c', // Slightly lighter gray on hover
-                },
-              }}
+        {closedMarkets.map((market) => (
+          <Paper
+            key={market._id}
+            component={Link}
+            to={`/markets/${market._id}`}
+            sx={{
+              width: '100%',
+              marginBottom: 2,
+              padding: 2,
+              backgroundColor: '#2c2c2c', // Dark pastel gray background
+              textDecoration: 'none',
+              color: '#FFF',
+              '&:hover': {
+                backgroundColor: '#3c3c3c', // Slightly lighter gray on hover
+              },
+            }}
+          >
+            <Typography variant="h6" sx={{ marginBottom: 1 }}>
+              {market.name} (Closed)
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#FFF', marginBottom: 1 }}>
+              Winner: {market.winner}
+            </Typography>
+            <List>
+              {calculateLikelihoods(market.competitors).slice(0, 5).map((competitor) => (
+                <ListItem key={competitor.name}>
+                  <ListItemText
+                    primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
+                    sx={{ color: '#FFF' }}
+                  />
+                </ListItem>
+              ))}
+            </List>
+            <Typography
+              component="div"
+              variant="body2"
+              sx={{ color: '#FFF', marginTop: 1 }}
             >
-              <Typography variant="h6" sx={{ marginBottom: 1 }}>
-                {market.name} (Closed)
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#FFF', marginBottom: 1 }}>
-                Winner: {market.winner}
-              </Typography>
-              <List>
-                {competitorsWithLikelihoods.map((competitor) => (
-                  <ListItem key={competitor.name}>
-                    <ListItemText
-                      primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
-                      sx={{ color: '#FFF' }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </Paper>
-          );
-        })}
+              Continue to see all competitors
+            </Typography>
+          </Paper>
+        ))}
       </Box>
     </Container>
   );

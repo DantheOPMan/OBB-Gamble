@@ -228,21 +228,6 @@ const MarketPage = () => {
                 {marketData.winner} won!
               </Typography>
             )}
-            <Paper sx={{ width: '100%', padding: 2, marginBottom: 4, marginTop: 2, backgroundColor: '#2c2c2c', border: '1px solid white', boxShadow: '0 4px 8px rgba(255, 255, 255, 0.1)' }}>
-              <Typography variant="h6" sx={{ marginBottom: 2, color: 'white', textAlign: 'center' }}>
-                Competitors and Likelihoods
-              </Typography>
-              <List>
-                {competitorsWithLikelihoods.map((competitor) => (
-                  <ListItem key={competitor.name}>
-                    <ListItemText
-                      primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
-                      sx={{ color: '#FFF' }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </Paper>
             {marketData.status === 'open' && (
               <Paper sx={{ width: '100%', padding: 2, marginBottom: 4, backgroundColor: '#2c2c2c', border: '1px solid white', boxShadow: '0 4px 8px rgba(255, 255, 255, 0.1)' }}>
                 <Typography variant="h6" sx={{ marginBottom: 2, color: 'white', textAlign: 'center' }}>
@@ -290,6 +275,21 @@ const MarketPage = () => {
                 </Button>
               </Paper>
             )}
+            <Paper sx={{ width: '100%', padding: 2, marginBottom: 4, marginTop: 2, backgroundColor: '#2c2c2c', border: '1px solid white', boxShadow: '0 4px 8px rgba(255, 255, 255, 0.1)' }}>
+              <Typography variant="h6" sx={{ marginBottom: 2, color: 'white', textAlign: 'center' }}>
+                Competitors and Likelihoods
+              </Typography>
+              <List>
+                {competitorsWithLikelihoods.map((competitor) => (
+                  <ListItem key={competitor.name}>
+                    <ListItemText
+                      primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
+                      sx={{ color: '#FFF' }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
           </Grid>
           <Grid item xs={12} sm={7} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Line ref={chartRef} data={data} options={options} />
