@@ -4,13 +4,14 @@ import AdminApprovalPage from './AdminApprovalPage';
 import CloseMarketPage from './CloseMarketPage';
 import CreateMarketPage from './CreateMarketPage';
 import ApprovedTransactionsPage from './ApprovedTransactionsPage';
-import AdminTipsPage from './AdminTipsPage'; // Import the new AdminTipsPage
+import AdminTipsPage from './AdminTipsPage';
+import UserHistoryPage from './UserHistoryPage';
 import { fetchPendingTransactions, approveTransaction, rejectTransaction, fetchPendingTips, approveTip, rejectTip } from '../firebase';
 
 const AdminPage = () => {
   const [currentSection, setCurrentSection] = useState('create');
   const [transactions, setTransactions] = useState([]);
-  const [tips, setTips] = useState([]); // State for tips
+  const [tips, setTips] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
   const [openToast, setOpenToast] = useState(false);
 
@@ -34,7 +35,7 @@ const AdminPage = () => {
     };
 
     fetchTransactions();
-    fetchTips(); // Fetch tips on load
+    fetchTips();
   }, []);
 
   const handleApprove = async (transactionId) => {
@@ -104,7 +105,7 @@ const AdminPage = () => {
           bgcolor: 'background.default',
           padding: 4,
           borderRadius: 2,
-          width:'100%',
+          width: '100%',
         }}
       >
         <Box sx={{ display: 'flex', mb: 4, justifyContent: 'space-between', width: '100%' }}>
@@ -188,6 +189,22 @@ const AdminPage = () => {
           >
             Tips
           </Button>
+          <Button
+            variant="contained"
+            onClick={() => setCurrentSection('history')}
+            sx={{
+              flex: 1,
+              marginRight: 1,
+              padding: '10px 0',
+              fontSize: '14px',
+              minWidth: 0,
+              '&:last-child': {
+                marginRight: 0,
+              },
+            }}
+          >
+            User History
+          </Button>
         </Box>
 
         {currentSection === 'create' && <CreateMarketPage />}
@@ -207,6 +224,7 @@ const AdminPage = () => {
             handleReject={handleRejectTip}
           />
         )}
+        {currentSection === 'history' && <UserHistoryPage />}
       </Box>
 
       <Snackbar

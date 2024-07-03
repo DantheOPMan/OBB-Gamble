@@ -18,6 +18,7 @@ import {
 const UserProfile = () => {
   const [userData, setUserData] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  const [targetUsers, setTargetUsers] = useState({});
   const [openUpdateUsernames, setOpenUpdateUsernames] = useState(false);
   const [discordUsername, setDiscordUsername] = useState('');
   const [obkUsername, setObkUsername] = useState('');
@@ -41,6 +42,17 @@ const UserProfile = () => {
         try {
           const transactionsData = await fetchUserTransactions(currentUser.uid);
           setTransactions(transactionsData);
+
+          const targetUsersData = {};
+          for (const transaction of transactionsData) {
+            if (transaction.targetUserId && !targetUsersData[transaction.targetUserId]) {
+              const targetUserData = await getUser(transaction.targetUserId);
+              if (targetUserData) {
+                targetUsersData[transaction.targetUserId] = targetUserData;
+              }
+            }
+          }
+          setTargetUsers(targetUsersData);
         } catch (error) {
           console.error('Error fetching user transactions: ', error);
         }
@@ -127,64 +139,75 @@ const UserProfile = () => {
           Transactions
         </Typography>
         <List>
-          {transactions.map((transaction) => (
-            <ListItem key={transaction._id}>
-              <ListItemText
-                primary={`Amount: ${transaction.amount} BP`}
-                secondary={
-                  <>
-                    <Typography variant="body2" component="span">
-                      Status: {transaction.status}
-                    </Typography>
-                    <br />
-                    <Typography variant="body2" component="span">
-                      Date: {new Date(transaction.timestamp).toLocaleString()}
-                    </Typography>
-                    {transaction.targetUserId && (
-                      <>
-                        <br />
-                        <Typography variant="body2" component="span">
-                          Target User ID: {transaction.targetUserId}
-                        </Typography>
-                      </>
-                    )}
-                    {transaction.marketId && (
-                      <>
-                        <br />
-                        <Typography variant="body2" component="span">
-                          Market ID: {transaction.marketId}
-                        </Typography>
-                      </>
-                    )}
-                    {transaction.competitorName && (
-                      <>
-                        <br />
-                        <Typography variant="body2" component="span">
-                          Competitor Name: {transaction.competitorName}
-                        </Typography>
-                      </>
-                    )}
-                    {transaction.discordUsername && (
-                      <>
-                        <br />
-                        <Typography variant="body2" component="span">
-                          Discord Username: {transaction.discordUsername}
-                        </Typography>
-                      </>
-                    )}
-                    {transaction.obkUsername && (
-                      <>
-                        <br />
-                        <Typography variant="body2" component="span">
-                          OBK Username: {transaction.obkUsername}
-                        </Typography>
-                      </>
-                    )}
-                  </>
-                }
-              />
-            </ListItem>
-          ))}
+          {transactions.map((transaction) => {
+            const targetUser = targetUsers[transaction.targetUserId];
+            return (
+              <ListItem key={transaction._id}>
+                <ListItemText
+                  primary={`Amount: ${transaction.amount} BP`}
+                  secondary={
+                    <>
+                      <Typography variant="body2" component="span">
+                        Status: {transaction.status}
+                      </Typography>
+                      <br />
+                      <Typography variant="body2" component="span">
+                        Date: {new Date(transaction.timestamp).toLocaleString()}
+                      </Typography>
+                      {transaction.targetUserId && (
+                        <>
+                          <br />
+                          <Typography variant="body2" component="span">
+                            Target User ID: {transaction.targetUserId}
+                          </Typography>
+                          <br />
+                          <Typography variant="body2" component="span">
+                            Target Discord Username: {targetUser?.discordUsername || 'N/A'}
+                          </Typography>
+                          <br />
+                          <Typography variant="body2" component="span">
+                            Target OBK Username: {targetUser?.obkUsername || 'N/A'}
+                          </Typography>
+                        </>
+                      )}
+                      {transaction.marketId && (
+                        <>
+                          <br />
+                          <Typography variant="body2" component="span">
+                            Market ID: {transaction.marketId}
+                          </Typography>
+                        </>
+                      )}
+                      {transaction.competitorName && (
+                        <>
+                          <br />
+                          <Typography variant="body2" component="span">
+                            Competitor Name: {transaction.competitorName}
+                          </Typography>
+                        </>
+                      )}
+                      {transaction.discordUsername && (
+                        <>
+                          <br />
+                          <Typography variant="body2" component="span">
+                            Discord Username: {transaction.discordUsername}
+                          </Typography>
+                        </>
+                      )}
+                      {transaction.obkUsername && (
+                        <>
+                          <br />
+                          <Typography variant="body2" component="span">
+                            OBK Username: {transaction.obkUsername}
+                          </Typography>
+                        </>
+                      )}
+                    </>
+                  }
+                />
+              </ListItem>
+            );
+          })}
         </List>
       </Box>
       <Dialog open={openUpdateUsernames} onClose={handleCloseUpdateUsernames}>
