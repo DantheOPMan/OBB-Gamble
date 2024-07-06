@@ -81,7 +81,7 @@ const closeMarket = async (req, res) => {
     const totalWinningBets = winner
       ? transactions.filter(transaction => transaction.competitorName === winner).reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0)
       : 0;
-    const adminFee = Math.ceil(totalPool * 0.01);
+    const adminFee = Math.ceil(totalPool * 0.05);
     const netPool = totalPool - adminFee;
     const adminUsers = await User.find({ role: 'admin' });
     const adminFeePerUser = adminFee / adminUsers.length;
