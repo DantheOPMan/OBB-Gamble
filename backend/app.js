@@ -4,7 +4,8 @@ const cors = require('cors');
 const connectDB = require('./db/conn');
 const userRoutes = require('./routes/userRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
-const marketRoutes = require('./routes/marketRoutes'); // Import market routes
+const marketRoutes = require('./routes/marketRoutes');
+const plinkoRoutes = require('./routes/plinkoRoutes');
 
 const app = express();
 
@@ -16,5 +17,6 @@ connectDB();
 app.use('/api/users', userRoutes);
 app.use('/api/transactions', transactionRoutes); 
 app.use('/api/markets', marketRoutes);
+app.use('/api/plinko', plinkoRoutes);
 
 module.exports = app;

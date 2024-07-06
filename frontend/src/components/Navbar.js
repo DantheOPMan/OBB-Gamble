@@ -114,6 +114,21 @@ const Navbar = () => {
                 <Button
                   color="inherit"
                   component={Link}
+                  to="/casino"
+                  sx={{
+                    padding: '10px 16px',
+                    fontSize: '16px',
+                    '&:hover': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.2)', // Darker highlight color
+                    },
+                    flex: '1 1 100px',
+                  }}
+                >
+                  Casino
+                </Button>
+                <Button
+                  color="inherit"
+                  component={Link}
                   to="/tips"
                   sx={{
                     padding: '10px 16px',

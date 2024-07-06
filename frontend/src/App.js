@@ -11,9 +11,11 @@ import UserProfile from './pages/UserProfile';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminApprovalPage from './pages/AdminApprovalPage';
-import TippingPage from './pages/TippingPage'; // Import the new AdminTipsPage
+import TippingPage from './pages/TippingPage';
 import AuthenticatedRoute from './components/AuthenticatedRoute';
 import theme from './theme';
+import CasinoPage from './pages/CasinoPage';
+import BPlinkoPage from './pages/BPlinkoPage';
 
 const App = () => {
   return (
@@ -34,6 +36,8 @@ const App = () => {
               <Route path="/markets" element={<MarketsPage />} />
               <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
               <Route path="/profile" element={<UserProfile />} />
+              <Route path="/casino" element={<CasinoPage />} />
+              <Route path="/casino/bplinko" element={<BPlinkoPage />} />
             </Routes>
           </div>
         </AuthenticatedRoute>

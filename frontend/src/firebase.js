@@ -50,6 +50,7 @@ const makeRequest = async (endpoint, method, body = null) => {
   }
 };
 
+
 const registerUser = async (uid, email) => {
   return makeRequest('/api/users/register', 'POST', { uid, email });
 };
@@ -150,4 +151,13 @@ const fetchUserTransactions = async (userId) => {
   return makeRequest(`/api/users/${userId}/transactions`, 'GET');
 };
 
-export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, fetchApprovedTransactions, createMarket, getMarkets, pauseMarket, closeMarket, resumeMarket, getMarketById, placeBet, getBetTransactions, requestTip, fetchPendingTips, approveTip, rejectTip, fetchUsers, fetchUserTransactions };
+const playPlinko = async (amount) => {
+  const userId = auth.currentUser.uid;
+  return makeRequest('/api/plinko/play', 'POST', { userId, amount });
+};
+
+const getPlinkoResults = async () => {
+  return makeRequest('/api/plinko/results', 'GET');
+};
+
+export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, fetchApprovedTransactions, createMarket, getMarkets, pauseMarket, closeMarket, resumeMarket, getMarketById, placeBet, getBetTransactions, requestTip, fetchPendingTips, approveTip, rejectTip, fetchUsers, fetchUserTransactions, playPlinko, getPlinkoResults };

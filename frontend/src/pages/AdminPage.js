@@ -6,6 +6,7 @@ import CreateMarketPage from './CreateMarketPage';
 import ApprovedTransactionsPage from './ApprovedTransactionsPage';
 import AdminTipsPage from './AdminTipsPage';
 import UserHistoryPage from './UserHistoryPage';
+import StatsPage from './StatsPage';  // Import the new StatsPage component
 import { fetchPendingTransactions, approveTransaction, rejectTransaction, fetchPendingTips, approveTip, rejectTip } from '../firebase';
 
 const AdminPage = () => {
@@ -95,7 +96,7 @@ const AdminPage = () => {
   };
 
   return (
-    <Container component="main" maxWidth="md">
+    <Container component="main" maxWidth="lg">
       <Box
         sx={{
           marginTop: 8,
@@ -205,6 +206,18 @@ const AdminPage = () => {
           >
             User History
           </Button>
+          <Button
+            variant="contained"
+            onClick={() => setCurrentSection('stats')}
+            sx={{
+              flex: 1,
+              padding: '10px 0',
+              fontSize: '14px',
+              minWidth: 0,
+            }}
+          >
+            Stats
+          </Button>
         </Box>
 
         {currentSection === 'create' && <CreateMarketPage />}
@@ -225,6 +238,7 @@ const AdminPage = () => {
           />
         )}
         {currentSection === 'history' && <UserHistoryPage />}
+        {currentSection === 'stats' && <StatsPage />}
       </Box>
 
       <Snackbar
