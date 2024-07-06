@@ -70,6 +70,10 @@ const playPlinko = async (req, res) => {
 
     // Update user balance with winnings
     user.bpBalance += parseFloat(winnings); // Convert back to number for accuracy
+
+    // Round the user balance to 1 decimal place
+    user.bpBalance = parseFloat(user.bpBalance.toFixed(1));
+    
     await user.save();
 
     const newPlinkoResult = new Plinko({ userId, amount, result: winnings, position });
