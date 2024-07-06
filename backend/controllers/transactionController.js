@@ -77,13 +77,20 @@ const approveTransaction = async (req, res) => {
       return res.status(404).json({ message: 'Transaction not found' });
     }
 
-    const user = await User.findOne({ uid: transaction.userId });  // Use findOne with uid
+    const user = await User.findOne({ uid: transaction.userId });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     if (!transaction.discordUsername || !transaction.obkUsername) {
       return res.status(400).json({ message: 'Discord and OBK usernames are required' });
+    }
+
+    // Check if the transaction is a withdrawal
+    if (transaction.amount < 0 && user.bpBalance < Math.abs(transaction.amount)) {
+      transaction.status = 'rejected';
+      await transaction.save();  
+      return res.status(400).json({ message: 'Insufficient balance for withdrawal' });
     }
 
     transaction.status = 'approved';
@@ -97,7 +104,6 @@ const approveTransaction = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 const rejectTransaction = async (req, res) => {
   const { transactionId } = req.params;
