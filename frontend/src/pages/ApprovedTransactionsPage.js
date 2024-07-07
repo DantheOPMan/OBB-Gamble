@@ -7,6 +7,8 @@ const ApprovedTransactionsPage = () => {
   const [groupedTransactions, setGroupedTransactions] = useState({});
   const [userDetails, setUserDetails] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -47,6 +49,22 @@ const ApprovedTransactionsPage = () => {
     setSearchQuery(event.target.value);
   };
 
+  const handleStartDateChange = (event) => {
+    setStartDate(event.target.value);
+  };
+
+  const handleEndDateChange = (event) => {
+    setEndDate(event.target.value);
+  };
+
+  const isDateInRange = (date) => {
+    if (!startDate && !endDate) return true;
+    const transactionDate = new Date(date);
+    const start = startDate ? new Date(startDate) : new Date('1970-01-01');
+    const end = endDate ? new Date(endDate) : new Date('2100-01-01');
+    return transactionDate >= start && transactionDate <= end;
+  };
+
   const filteredUsers = Object.keys(groupedTransactions).filter(userId => {
     const user = userDetails[userId];
     if (!user) return false;
@@ -61,16 +79,18 @@ const ApprovedTransactionsPage = () => {
     const transactionsData = [];
     filteredUsers.forEach(userId => {
       groupedTransactions[userId].forEach(transaction => {
-        const user = userDetails[userId];
-        transactionsData.push({
-          Username: user?.username || '',
-          UserID: userId,
-          Discord: user?.discordUsername || '',
-          'OBK Username': user?.obkUsername || '',
-          'BP Balance': user?.bpBalance || '',
-          Amount: transaction.amount,
-          Timestamp: new Date(transaction.timestamp).toLocaleString()
-        });
+        if (isDateInRange(transaction.timestamp)) {
+          const user = userDetails[userId];
+          transactionsData.push({
+            Username: user?.username || '',
+            UserID: userId,
+            Discord: user?.discordUsername || '',
+            'OBK Username': user?.obkUsername || '',
+            'BP Balance': user?.bpBalance || '',
+            Amount: transaction.amount,
+            Timestamp: new Date(transaction.timestamp).toLocaleString()
+          });
+        }
       });
     });
 
@@ -93,6 +113,23 @@ const ApprovedTransactionsPage = () => {
           onChange={handleSearchChange}
           variant="outlined"
           sx={{ width: '300px' }}
+        />
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
+        <TextField
+          label="Start Date"
+          type="date"
+          value={startDate}
+          onChange={handleStartDateChange}
+          InputLabelProps={{ shrink: true }}
+          sx={{ marginRight: 2 }}
+        />
+        <TextField
+          label="End Date"
+          type="date"
+          value={endDate}
+          onChange={handleEndDateChange}
+          InputLabelProps={{ shrink: true }}
         />
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
@@ -126,12 +163,14 @@ const ApprovedTransactionsPage = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {groupedTransactions[userId].map((transaction) => (
-                  <TableRow key={transaction._id}>
-                    <TableCell sx={{ color: 'white' }}>{transaction.amount}</TableCell>
-                    <TableCell sx={{ color: 'white' }}>{new Date(transaction.timestamp).toLocaleString()}</TableCell>
-                  </TableRow>
-                ))}
+                {groupedTransactions[userId]
+                  .filter(transaction => isDateInRange(transaction.timestamp))
+                  .map((transaction) => (
+                    <TableRow key={transaction._id}>
+                      <TableCell sx={{ color: 'white' }}>{transaction.amount}</TableCell>
+                      <TableCell sx={{ color: 'white' }}>{new Date(transaction.timestamp).toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))}
               </TableBody>
             </Table>
           </TableContainer>
