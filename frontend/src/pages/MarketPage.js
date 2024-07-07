@@ -143,8 +143,16 @@ const MarketPage = () => {
   };
 
   const handleBet = async () => {
-    if (!betAmount || isNaN(betAmount) || betAmount <= 0) {
+    const betAmountNum = Number(betAmount);
+
+    if (!betAmount || isNaN(betAmountNum) || betAmountNum <= 0) {
       setMessage('Please enter a valid positive bet amount');
+      setOpenToast(true);
+      return;
+    }
+
+    if (betAmountNum < 50) {
+      setMessage('The minimum bet amount is 50 BP');
       setOpenToast(true);
       return;
     }
@@ -156,8 +164,8 @@ const MarketPage = () => {
     }
 
     try {
-      await placeBet(marketId, Number(betAmount), selectedCompetitor);
-      setMessage(`Bet placed on ${selectedCompetitor} for ${betAmount} BP`);
+      await placeBet(marketId, betAmountNum, selectedCompetitor);
+      setMessage(`Bet placed on ${selectedCompetitor} for ${betAmountNum} BP`);
       setOpenToast(true);
       setBetAmount('');
       setSelectedCompetitor('');
