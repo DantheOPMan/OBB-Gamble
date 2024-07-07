@@ -100,7 +100,7 @@ const approveTransaction = async (req, res) => {
     await user.save();
 
     res.status(200).json(transaction);
-  } catch (error) {
+  } catch (error) { 
     res.status(500).json({ message: error.message });
   }
 };
