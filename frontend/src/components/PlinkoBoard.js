@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Container, Button, Typography, Box } from '@mui/material';
+import { Container, Button, Typography, Box, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { playPlinko } from '../firebase';
 import { Engine, Render, World, Bodies, Events, Runner, Body } from 'matter-js';
@@ -45,12 +45,40 @@ const ResultText = styled(Typography)(({ theme }) => ({
     color: theme.palette.text.secondary,
 }));
 
+const CustomFormControl = styled(FormControl)(({ theme }) => ({
+    marginBottom: '1rem',
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    '& .MuiInputLabel-root': {
+        color: '#ffffff',
+        marginRight: '1rem',
+    },
+}));
+
+const CustomSelect = styled(Select)(({ theme }) => ({
+    '& .MuiSelect-select': {
+        backgroundColor: '#333333',
+        color: '#ffffff',
+    },
+    '& .MuiOutlinedInput-notchedOutline': {
+        borderColor: '#ffffff',
+    },
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+        borderColor: '#ffffff',
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+        borderColor: '#ffffff',
+    },
+}));
+
 const PlinkoBoard = ({ onResultUpdate }) => {
     const [latestResult, setLatestResult] = useState(null);
     const [recentResults, setRecentResults] = useState([]);
     const refContainer = useRef(null);
     const [bottomColors, setBottomColors] = useState(Array(15).fill('#ffffff'));
     const [isButtonDisabled, setIsButtonDisabled] = useState(false);
+    const [numBalls, setNumBalls] = useState(1);
     const engineRef = useRef(Engine.create());
     const runnerRef = useRef(Runner.create());
     const ballsRef = useRef([]);
@@ -62,19 +90,21 @@ const PlinkoBoard = ({ onResultUpdate }) => {
             setIsButtonDisabled(true);
             setTimeout(() => setIsButtonDisabled(false), 1000);
 
-            const amount = 1;
-            const { result, multiplier } = await playPlinko(amount);
+            for (let i = 0; i < numBalls; i++) {
+                const amount = 1;
+                const { result, multiplier } = await playPlinko(amount);
 
-            // Find all buckets with the returned multiplier
-            const targetBuckets = multipliers.reduce((acc, m, index) => {
-                if (m === multiplier) acc.push(index);
-                return acc;
-            }, []);
+                // Find all buckets with the returned multiplier
+                const targetBuckets = multipliers.reduce((acc, m, index) => {
+                    if (m === multiplier) acc.push(index);
+                    return acc;
+                }, []);
 
-            // Randomly select one of the target buckets
-            const selectedBucket = targetBuckets[Math.floor(Math.random() * targetBuckets.length)];
+                // Randomly select one of the target buckets
+                const selectedBucket = targetBuckets[Math.floor(Math.random() * targetBuckets.length)];
 
-            dropBall(selectedBucket, result, multiplier);
+                dropBall(selectedBucket, result, multiplier);
+            }
         } catch (error) {
             console.error('Error playing Plinko:', error);
         }
@@ -86,7 +116,10 @@ const PlinkoBoard = ({ onResultUpdate }) => {
             restitution: 0.5,
             friction: 0.001,
             density: 0.1,
-            label: 'particle'
+            label: 'particle',
+            collisionFilter: {
+                group: -1
+            },
         });
         World.add(engineRef.current.world, ball);
         ballsRef.current.push({
@@ -292,7 +325,30 @@ const PlinkoBoard = ({ onResultUpdate }) => {
                     </div>
                 ))}
             </div>
-            <PlinkoButton onClick={playPlinkoGame} disabled={isButtonDisabled}>Drop Ball</PlinkoButton>
+            <PlinkoButton onClick={playPlinkoGame} disabled={isButtonDisabled}>
+                Drop Ball{numBalls > 1 ? 's' : ''}
+            </PlinkoButton>
+            <CustomFormControl>
+                <Typography variant="body1" style={{ color: '#ffffff', marginRight: '1rem' }}>
+                    Number of Balls:
+                </Typography>
+                <CustomSelect
+                    labelId="num-balls-label"
+                    value={numBalls}
+                    onChange={(e) => setNumBalls(e.target.value)}
+                    MenuProps={{
+                        PaperProps: {
+                            style: {
+                                backgroundColor: '#333333',
+                            },
+                        },
+                    }}
+                >
+                    {[...Array(10).keys()].map(i => (
+                        <MenuItem key={i + 1} value={i + 1}>{i + 1}</MenuItem>
+                    ))}
+                </CustomSelect>
+            </CustomFormControl>
             {latestResult && (
                 <ResultText>
                     Latest result: {latestResult.result} BP (Multiplier: {latestResult.multiplier}x)
