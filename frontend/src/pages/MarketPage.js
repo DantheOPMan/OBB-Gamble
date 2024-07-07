@@ -73,7 +73,6 @@ const MarketPage = () => {
       }
     };
   }, []);
-  
 
   const calculateTotalBPBet = (transactions) => {
     return transactions.reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
@@ -133,6 +132,8 @@ const MarketPage = () => {
   };
 
   const options = {
+    responsive: true,
+    maintainAspectRatio: false,
     scales: {
       y: {
         beginAtZero: true,
@@ -192,7 +193,7 @@ const MarketPage = () => {
         }}
       >
         <Grid container spacing={2} justifyContent="center">
-          <Grid item xs={12} sm={5} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Grid item xs={12} sm={4} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Typography component="h1" variant="h5" sx={{ marginBottom: 1, textAlign: 'center' }}>
               {marketData.name || 'Market'}
             </Typography>
@@ -291,8 +292,10 @@ const MarketPage = () => {
               </List>
             </Paper>
           </Grid>
-          <Grid item xs={12} sm={7} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Line ref={chartRef} data={data} options={options} />
+          <Grid item xs={12} sm={8} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Box sx={{ width: '100%', height: 400 }}>
+              <Line ref={chartRef} data={data} options={options} />
+            </Box>
             <Paper sx={{ width: '100%', padding: 2, marginTop: 4, backgroundColor: '#2c2c2c', border: '1px solid white', boxShadow: '0 4px 8px rgba(255, 255, 255, 0.1)' }}>
               <Typography variant="h6" sx={{ marginBottom: 2, color: 'white', textAlign: 'center' }}>
                 Market Transactions
