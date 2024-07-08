@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Container, Button, Typography, Box, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { Container, Button, Typography, Box, Select, MenuItem, FormControl, InputLabel, OutlinedInput } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { playPlinko } from '../firebase';
 import { Engine, Render, World, Bodies, Events, Runner, Body } from 'matter-js';
@@ -72,6 +72,20 @@ const CustomSelect = styled(Select)(({ theme }) => ({
     },
 }));
 
+const CustomInput = styled(OutlinedInput)(({ theme }) => ({
+    backgroundColor: '#333333',
+    color: '#ffffff',
+    '& .MuiOutlinedInput-notchedOutline': {
+        borderColor: '#ffffff',
+    },
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+        borderColor: '#ffffff',
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+        borderColor: '#ffffff',
+    },
+}));
+
 const PlinkoBoard = ({ onResultUpdate }) => {
     const [latestResult, setLatestResult] = useState(null);
     const [recentResults, setRecentResults] = useState([]);
@@ -79,6 +93,7 @@ const PlinkoBoard = ({ onResultUpdate }) => {
     const [bottomColors, setBottomColors] = useState(Array(15).fill('#ffffff'));
     const [isButtonDisabled, setIsButtonDisabled] = useState(false);
     const [numBalls, setNumBalls] = useState(1);
+    const [amount, setAmount] = useState(1);
     const engineRef = useRef(Engine.create());
     const runnerRef = useRef(Runner.create());
     const ballsRef = useRef([]);
@@ -91,16 +106,14 @@ const PlinkoBoard = ({ onResultUpdate }) => {
             setTimeout(() => setIsButtonDisabled(false), 1000);
 
             for (let i = 0; i < numBalls; i++) {
-                const amount = 1;
-                const { result, multiplier } = await playPlinko(amount);
+                const amountToPlay = Math.min(amount, 5);
+                const { result, multiplier } = await playPlinko(amountToPlay);
 
-                // Find all buckets with the returned multiplier
                 const targetBuckets = multipliers.reduce((acc, m, index) => {
                     if (m === multiplier) acc.push(index);
                     return acc;
                 }, []);
 
-                // Randomly select one of the target buckets
                 const selectedBucket = targetBuckets[Math.floor(Math.random() * targetBuckets.length)];
 
                 dropBall(selectedBucket, result, multiplier);
@@ -129,7 +142,7 @@ const PlinkoBoard = ({ onResultUpdate }) => {
             result: result,
             multiplier: multiplier
         });
-    };    
+    };
 
     useEffect(() => {
         const engine = engineRef.current;
@@ -349,6 +362,17 @@ const PlinkoBoard = ({ onResultUpdate }) => {
                         <MenuItem key={i + 1} value={i + 1}>{i + 1}</MenuItem>
                     ))}
                 </CustomSelect>
+            </CustomFormControl>
+            <CustomFormControl>
+                <Typography variant="body1" style={{ color: '#ffffff', marginRight: '1rem' }}>
+                    Amount per Ball:
+                </Typography>
+                <CustomInput
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(Math.min(e.target.value, 5))}
+                    inputProps={{ min: 1, max: 5 }}
+                />
             </CustomFormControl>
             {latestResult && (
                 <ResultText>
