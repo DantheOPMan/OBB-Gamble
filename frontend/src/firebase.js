@@ -1,4 +1,3 @@
-// src/firebase.js
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { APIURL } from './constants';
@@ -50,7 +49,6 @@ const makeRequest = async (endpoint, method, body = null) => {
   }
 };
 
-
 const registerUser = async (uid, email) => {
   return makeRequest('/api/users/register', 'POST', { uid, email });
 };
@@ -60,13 +58,11 @@ const getUser = async (uid) => {
 };
 
 const requestDeposit = async (userId, amount, discordUsername, obkUsername) => {
-  const marketName = ""; // Set marketName to an empty string
-  return makeRequest('/api/transactions/deposit', 'POST', { userId, amount, marketName, discordUsername, obkUsername });
+  return makeRequest('/api/transactions/deposit', 'POST', { userId, amount, discordUsername, obkUsername });
 };
 
 const requestWithdraw = async (userId, amount, discordUsername, obkUsername) => {
-  const marketName = ""; // Set marketName to an empty string
-  return makeRequest('/api/transactions/withdraw', 'POST', { userId, amount, marketName, discordUsername, obkUsername });
+  return makeRequest('/api/transactions/withdraw', 'POST', { userId, amount, discordUsername, obkUsername });
 };
 
 const approveTransaction = async (transactionId) => {
@@ -156,8 +152,49 @@ const playPlinko = async (amount) => {
   return makeRequest('/api/plinko/play', 'POST', { userId, amount });
 };
 
-const getPlinkoResults = async () => {
-  return makeRequest('/api/plinko/results', 'GET');
+const claimPlinkoProfits = async () => {
+  return makeRequest('/api/plinko/claim-profits', 'POST');
 };
 
-export { auth, provider, signInWithPopup, signOut, onAuthStateChanged, registerUser, getUser, updateUser, requestDeposit, requestWithdraw, approveTransaction, rejectTransaction, fetchPendingTransactions, fetchApprovedTransactions, createMarket, getMarkets, pauseMarket, closeMarket, resumeMarket, getMarketById, placeBet, getBetTransactions, requestTip, fetchPendingTips, approveTip, rejectTip, fetchUsers, fetchUserTransactions, playPlinko, getPlinkoResults };
+const getPlinkoResults = async () => {
+  return makeRequest('/api/stats/plinko-results', 'GET');
+};
+
+const getBurnTransactions = async () => {
+  return makeRequest('/api/stats/burn-transactions', 'GET');
+};
+
+export {
+  auth,
+  provider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  registerUser,
+  getUser,
+  updateUser,
+  requestDeposit,
+  requestWithdraw,
+  approveTransaction,
+  rejectTransaction,
+  fetchPendingTransactions,
+  fetchApprovedTransactions,
+  createMarket,
+  getMarkets,
+  pauseMarket,
+  closeMarket,
+  resumeMarket,
+  getMarketById,
+  placeBet,
+  getBetTransactions,
+  requestTip,
+  fetchPendingTips,
+  approveTip,
+  rejectTip,
+  fetchUsers,
+  fetchUserTransactions,
+  playPlinko,
+  getPlinkoResults,
+  getBurnTransactions,
+  claimPlinkoProfits
+};

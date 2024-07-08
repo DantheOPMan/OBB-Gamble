@@ -86,23 +86,71 @@ const playPlinko = async (req, res) => {
   }
 };
 
-const getPlinkoResults = async (req, res) => {
+const claimProfits = async (req, res) => {
   try {
+    // Get all Plinko results
     const results = await Plinko.find({});
-    
-    const totalWagered = results.reduce((sum, transaction) => sum + transaction.amount, 0).toFixed(1);
-    const totalReturned = results.reduce((sum, transaction) => sum + transaction.result, 0).toFixed(1);
-    const netAmount = (totalWagered - totalReturned).toFixed(1);
 
-    res.status(200).json({
-      transactionCount: results.length,
-      totalWagered: parseFloat(totalWagered),
-      totalReturned: parseFloat(totalReturned),
-      netAmount: parseFloat(netAmount)
+    // Calculate total wagered and total returned
+    const totalWagered = results.reduce((sum, transaction) => sum + transaction.amount, 0);
+    const totalReturned = results.reduce((sum, transaction) => sum + transaction.result, 0);
+    const netProfits = totalWagered - totalReturned;
+
+    if (netProfits <= 0) {
+      return res.status(400).json({ message: 'No profits to claim' });
+    }
+
+    // Calculate burn amount and net profits after burn
+    const burnAmount = netProfits * 0.2;
+    const netProfitsAfterBurn = netProfits - burnAmount;
+
+    // Get all admin users
+    const adminUsers = await User.find({ role: 'admin' });
+    const adminProfitPerUser = netProfitsAfterBurn / adminUsers.length;
+
+    // Create transactions for burn and distribute profits to admins
+    for (const admin of adminUsers) {
+      // Admin profit transaction
+      const adminTransaction = new Transaction({
+        userId: admin.uid,
+        amount: adminProfitPerUser,
+        marketId: null,
+        competitorName: 'AdminProfit',
+        status: 'approved',
+        discordUsername: admin.discordUsername,
+        obkUsername: admin.obkUsername
+      });
+      admin.bpBalance += adminProfitPerUser;
+      await adminTransaction.save();
+      await admin.save();
+    }
+
+    // Burn transaction
+    const burnTransaction = new Transaction({
+      userId: 'burn',
+      amount: burnAmount,
+      marketId: null,
+      competitorName: 'Burn',
+      status: 'approved',
+      discordUsername: 'Burn',
+      obkUsername: 'Burn'
     });
+    await burnTransaction.save();
+
+    // Create Plinko transaction to subtract the claimed profits
+    const plinkoTransaction = new Plinko({
+      userId: 'adminClaim',
+      amount: -netProfits,
+      result: 0,
+      position: null,
+    });
+    await plinkoTransaction.save();
+
+    res.status(200).json({ message: 'Profits claimed successfully', netProfits, burnAmount, netProfitsAfterBurn });
   } catch (error) {
+    console.error('Error claiming profits:', error.message);
     res.status(500).json({ message: error.message });
   }
 };
 
-module.exports = { playPlinko, getPlinkoResults };
+module.exports = { playPlinko, claimProfits };

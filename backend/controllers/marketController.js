@@ -82,9 +82,11 @@ const closeMarket = async (req, res) => {
       ? transactions.filter(transaction => transaction.competitorName === winner).reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0)
       : 0;
     const adminFee = Math.ceil(totalPool * 0.05);
+    const burnAmount = Math.ceil(adminFee * 0.2);
+    const netAdminFee = adminFee - burnAmount;
     const netPool = totalPool - adminFee;
     const adminUsers = await User.find({ role: 'admin' });
-    const adminFeePerUser = adminFee / adminUsers.length;
+    const adminFeePerUser = netAdminFee / adminUsers.length;
 
     for (const admin of adminUsers) {
       const adminTransaction = new Transaction({
@@ -100,6 +102,17 @@ const closeMarket = async (req, res) => {
       await adminTransaction.save();
       await admin.save();
     }
+
+    const burnTransaction = new Transaction({
+      userId: 'burn',
+      amount: burnAmount,
+      marketId: market._id,
+      competitorName: 'Burn',
+      status: 'approved',
+      discordUsername: 'Burn',
+      obkUsername: 'Burn'
+    });
+    await burnTransaction.save();
 
     if (totalWinningBets === 0) {
       const netPoolPerAdmin = Math.floor(netPool / adminUsers.length);

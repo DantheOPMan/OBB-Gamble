@@ -187,8 +187,8 @@ const approveTip = async (req, res) => {
       return res.status(404).json({ message: 'Transaction not found' });
     }
 
-    if(transaction.status != 'pending'){
-      return res.status(404).json({ message: 'Transaction is already confirmed/rejected' });
+    if(transaction.status !== 'pending'){
+      return res.status(400).json({ message: 'Transaction is already confirmed/rejected' });
     }
 
     const user = await User.findOne({ uid: transaction.userId });
@@ -206,13 +206,26 @@ const approveTip = async (req, res) => {
 
     const adminUsers = await User.find({ role: 'admin' });
     const adminFee = Math.ceil(Math.abs(transaction.amount) * 0.05);
+    const burnAmount = Math.ceil(adminFee * 0.2);
+    const netAdminFee = adminFee - burnAmount;
     const netAmount = Math.abs(transaction.amount) - adminFee;
-    const adminFeePerUser = adminFee / adminUsers.length;
+    const adminFeePerUser = netAdminFee / adminUsers.length;
 
     for (const admin of adminUsers) {
       admin.bpBalance += adminFeePerUser;
       await admin.save();
     }
+
+    const burnTransaction = new Transaction({
+      userId: 'burn',
+      amount: burnAmount,
+      marketId: transaction.marketId,
+      competitorName: 'Burn',
+      status: 'approved',
+      discordUsername: 'Burn',
+      obkUsername: 'Burn'
+    });
+    await burnTransaction.save();
 
     targetUser.bpBalance += netAmount;
     await targetUser.save();
