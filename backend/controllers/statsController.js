@@ -1,5 +1,6 @@
 const Plinko = require('../models/plinkoModel');
 const Transaction = require('../models/transactionModel');
+const BlackjackHand = require('../models/blackjackHandModel');
 
 // Function to get Plinko results
 const getPlinkoResults = async (req, res) => {
@@ -28,7 +29,6 @@ const getPlinkoResults = async (req, res) => {
   }
 };
 
-
 // Function to get burn transactions
 const getBurnTransactions = async (req, res) => {
   try {
@@ -46,4 +46,29 @@ const getBurnTransactions = async (req, res) => {
   }
 };
 
-module.exports = { getPlinkoResults, getBurnTransactions };
+const getBlackjackStats = async (req, res) => {
+  try {
+    const hands = await BlackjackHand.find({ status: 'completed' });
+
+    const totalWagered = hands.reduce((sum, hand) => {
+      return sum + hand.playerHands.reduce((handSum, playerHand) => handSum + playerHand.bpCharged, 0);
+    }, 0).toFixed(1);
+
+    const totalReturned = hands.reduce((sum, hand) => {
+      return sum + hand.playerHands.reduce((handSum, playerHand) => handSum + (playerHand.payout || 0), 0);
+    }, 0).toFixed(1);
+
+    const netAmount = (totalWagered - totalReturned).toFixed(1);
+
+    res.status(200).json({
+      handCount: hands.length,
+      totalWagered: parseFloat(totalWagered),
+      totalReturned: parseFloat(totalReturned),
+      netAmount: parseFloat(netAmount),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getPlinkoResults, getBurnTransactions, getBlackjackStats };

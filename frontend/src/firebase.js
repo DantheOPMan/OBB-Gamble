@@ -192,6 +192,9 @@ const getHandStatus = async (handId) => {
   return makeRequest(`/api/blackjack/status/${handId}`, 'GET');
 };
 
+const getBlackjackStats = async () => {
+  return makeRequest('/api/stats/blackjack-stats', 'GET');
+};
 
 export {
   auth,
@@ -233,4 +236,5 @@ export {
   splitBlackjack,
   getCurrentBlackjack,
   getHandStatus,
+  getBlackjackStats,
 };

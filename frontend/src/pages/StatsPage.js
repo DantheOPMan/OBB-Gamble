@@ -1,46 +1,43 @@
 import React, { useEffect, useState } from 'react';
 import { Typography, Card, CardContent, Grid, Paper, Button } from '@mui/material';
-import { getPlinkoResults, getBurnTransactions, claimPlinkoProfits } from '../firebase';
+import { getPlinkoResults, getBurnTransactions, claimPlinkoProfits, getBlackjackStats } from '../firebase';
 
 const StatsPage = () => {
-  const [stats, setStats] = useState(null);
+  const [plinkoStats, setPlinkoStats] = useState(null);
   const [burnStats, setBurnStats] = useState(null);
+  const [blackjackStats, setBlackjackStats] = useState(null);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await getPlinkoResults();
-        setStats(response);
+        const plinkoResponse = await getPlinkoResults();
+        setPlinkoStats(plinkoResponse);
+
+        const burnResponse = await getBurnTransactions();
+        setBurnStats(burnResponse);
+
+        const blackjackResponse = await getBlackjackStats();
+        setBlackjackStats(blackjackResponse);
       } catch (error) {
         console.error('Failed to fetch stats', error);
       }
     };
 
-    const fetchBurnStats = async () => {
-      try {
-        const response = await getBurnTransactions();
-        setBurnStats(response);
-      } catch (error) {
-        console.error('Failed to fetch burn stats', error);
-      }
-    };
-
     fetchStats();
-    fetchBurnStats();
   }, []);
 
   const handleClaimProfits = async () => {
     try {
       await claimPlinkoProfits();
       // Refresh stats after claiming profits
-      const response = await getPlinkoResults();
-      setStats(response);
+      const plinkoResponse = await getPlinkoResults();
+      setPlinkoStats(plinkoResponse);
     } catch (error) {
       console.error('Failed to claim profits', error);
     }
   };
 
-  if (!stats || !burnStats) {
+  if (!plinkoStats || !burnStats || !blackjackStats) {
     return <Typography>Loading stats...</Typography>;
   }
 
@@ -57,7 +54,7 @@ const StatsPage = () => {
                 Transaction Count
               </Typography>
               <Typography variant="body1">
-                {stats.transactionCount}
+                {plinkoStats.transactionCount}
               </Typography>
             </CardContent>
           </Card>
@@ -69,7 +66,7 @@ const StatsPage = () => {
                 Total Wagered
               </Typography>
               <Typography variant="body1">
-                {stats.totalWagered}
+                {plinkoStats.totalWagered}
               </Typography>
             </CardContent>
           </Card>
@@ -81,7 +78,7 @@ const StatsPage = () => {
                 Total Returned
               </Typography>
               <Typography variant="body1">
-                {stats.totalReturned}
+                {plinkoStats.totalReturned}
               </Typography>
             </CardContent>
           </Card>
@@ -93,7 +90,7 @@ const StatsPage = () => {
                 Net Amount
               </Typography>
               <Typography variant="body1">
-                {stats.netAmount}
+                {plinkoStats.netAmount}
               </Typography>
             </CardContent>
           </Card>
@@ -105,7 +102,7 @@ const StatsPage = () => {
                 Admin Claimed
               </Typography>
               <Typography variant="body1">
-                {Math.abs(stats.totalAdminClaimed)}
+                {Math.abs(plinkoStats.totalAdminClaimed)}
               </Typography>
             </CardContent>
           </Card>
@@ -145,6 +142,60 @@ const StatsPage = () => {
               </Typography>
               <Typography variant="body1">
                 {burnStats.totalBurned}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      <Typography variant="h4" gutterBottom sx={{ color: 'white', mt: 4 }}>
+        Blackjack Stats
+      </Typography>
+      <Grid container spacing={3}>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ bgcolor: '#616161', color: 'white' }}>
+            <CardContent>
+              <Typography variant="h6" component="div">
+                Hand Count
+              </Typography>
+              <Typography variant="body1">
+                {blackjackStats.handCount}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ bgcolor: '#616161', color: 'white' }}>
+            <CardContent>
+              <Typography variant="h6" component="div">
+                Total Wagered
+              </Typography>
+              <Typography variant="body1">
+                {blackjackStats.totalWagered}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ bgcolor: '#616161', color: 'white' }}>
+            <CardContent>
+              <Typography variant="h6" component="div">
+                Total Returned
+              </Typography>
+              <Typography variant="body1">
+                {blackjackStats.totalReturned}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ bgcolor: '#616161', color: 'white' }}>
+            <CardContent>
+              <Typography variant="h6" component="div">
+                Net Amount
+              </Typography>
+              <Typography variant="body1">
+                {blackjackStats.netAmount}
               </Typography>
             </CardContent>
           </Card>
