@@ -86,7 +86,7 @@ const CustomInput = styled(OutlinedInput)(({ theme }) => ({
     },
 }));
 
-const PlinkoBoard = ({ onDropBalls, onBallLanded }) => {
+const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
     const [latestResult, setLatestResult] = useState(null);
     const [recentResults, setRecentResults] = useState([]);
     const refContainer = useRef(null);
@@ -106,7 +106,7 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded }) => {
             setTimeout(() => setIsButtonDisabled(false), 1000);
 
             for (let i = 0; i < numBalls; i++) {
-                const amountToPlay = Math.min(amount, 5);
+                const amountToPlay = Math.min(amount, 10);
                 onDropBalls(amountToPlay);
                 const { result, multiplier } = await playPlinko(amountToPlay);
                 const targetBuckets = multipliers.reduce((acc, m, index) => {
@@ -332,6 +332,9 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded }) => {
     const gap = 10;
     const boxWidth = (700 - (multipliers.length - 1) * gap) / multipliers.length;
 
+    const totalCost = numBalls * amount;
+    const isDropDisabled = isButtonDisabled || totalCost > balance;
+
     return (
         <PlinkoContainer>
             <PlinkoTitle>BPlinko</PlinkoTitle>
@@ -357,7 +360,7 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded }) => {
                     </div>
                 ))}
             </div>
-            <PlinkoButton onClick={playPlinkoGame} disabled={isButtonDisabled}>
+            <PlinkoButton onClick={playPlinkoGame} disabled={isDropDisabled}>
                 Drop Ball{numBalls > 1 ? 's' : ''}
             </PlinkoButton>
             <CustomFormControl>
@@ -388,8 +391,8 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded }) => {
                 <CustomInput
                     type="number"
                     value={amount}
-                    onChange={(e) => setAmount(Math.min(e.target.value, 5))}
-                    inputProps={{ min: 1, max: 5 }}
+                    onChange={(e) => setAmount(Math.min(e.target.value, 10))}
+                    inputProps={{ min: 1, max: 10 }}
                 />
             </CustomFormControl>
             {latestResult && (

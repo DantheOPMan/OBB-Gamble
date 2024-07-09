@@ -24,7 +24,7 @@ const BPLinkoPage = () => {
     const val = parseFloat(amount);
     setBalance(prevBalance => {
       const newBalance = prevBalance - val;
-      return newBalance
+      return newBalance;
     });
   };
 
@@ -56,6 +56,7 @@ const BPLinkoPage = () => {
         <PlinkoBoard
           onDropBalls={handleDropBalls}
           onBallLanded={handleBallLanded}
+          balance={balance}
         />
       </Box>
     </Container>

@@ -3,7 +3,7 @@ const User = require('../models/userModel');
 const Transaction = require('../models/transactionModel'); 
 
 const numBuckets = 15;
-const stdDev = 1.9;
+const stdDev = 1.94;
 const multipliers = [100, 20, 8, 4, 2, 0.2, 0.2, 0.2, 0.2, 0.2, 2, 4, 8, 20, 100];
 
 // Helper function to generate a random number from a custom distribution
@@ -13,31 +13,27 @@ function customDistribution() {
     return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
 
-// Function to calculate odds and expected return
-function calculateOddsAndReturn(numBuckets, stdDev) {
-  const mean = (numBuckets - 1) / 2;
-  const odds = [];
-  let totalProbability = 0;
-  let expectedReturn = 0;
+// Function to run Plinko simulation
+function runPlinkoSimulation(numSimulations) {
+  const results = Array(numBuckets).fill(0);
 
-  for (let i = 0; i < numBuckets; i++) {
-    const z = (i - mean) / stdDev;
-    const probability = Math.exp(-0.5 * z * z);
-    odds.push(probability);
-    totalProbability += probability;
+  for (let i = 0; i < numSimulations; i++) {
+    const mean = (numBuckets - 1) / 2; // Center bucket
+    let position = Math.round(customDistribution() * stdDev + mean);
+    position = Math.max(0, Math.min(position, numBuckets - 1)); // Ensure position is within bounds
+
+    results[position]++;
   }
 
-  // Normalize probabilities to sum to 1
-  for (let i = 0; i < numBuckets; i++) {
-    odds[i] /= totalProbability;
-    expectedReturn += odds[i] * multipliers[i];
-  }
+  const probabilities = results.map(count => count / numSimulations);
+  const empiricalExpectedReturn = probabilities.reduce((sum, prob, index) => sum + prob * multipliers[index], 0).toFixed(3);
 
-  // Round expected return to 1 decimal place
-  expectedReturn = expectedReturn.toFixed(3);
-
-  return { odds, expectedReturn };
+  console.log('Empirical Probabilities:', probabilities);
+  console.log('Empirical Expected Return:', empiricalExpectedReturn);
 }
+
+// Run the simulation 10 million times when the code is initialized
+runPlinkoSimulation(10000000);
 
 // Main function to play Plinko
 const playPlinko = async (req, res) => {

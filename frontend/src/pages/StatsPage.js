@@ -98,6 +98,18 @@ const StatsPage = () => {
             </CardContent>
           </Card>
         </Grid>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ bgcolor: '#616161', color: 'white' }}>
+            <CardContent>
+              <Typography variant="h6" component="div">
+                Admin Claimed
+              </Typography>
+              <Typography variant="body1">
+                {Math.abs(stats.totalAdminClaimed)}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
         <Grid item xs={12}>
           <Button
             variant="contained"

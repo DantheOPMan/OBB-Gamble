@@ -13,16 +13,21 @@ const getPlinkoResults = async (req, res) => {
     const totalReturned = filteredResults.reduce((sum, transaction) => sum + parseFloat(transaction.result), 0).toFixed(1);
     const netAmount = (totalWagered - totalReturned).toFixed(1);
 
+    const adminClaimedTransactions = results.filter(transaction => transaction.userId === 'adminClaim');
+    const totalAdminClaimed = adminClaimedTransactions.reduce((sum, transaction) => sum + parseFloat(transaction.amount), 0).toFixed(1);
+
     res.status(200).json({
       transactionCount: filteredResults.length,
       totalWagered: parseFloat(totalWagered),
       totalReturned: parseFloat(totalReturned),
-      netAmount: parseFloat(netAmount)
+      netAmount: parseFloat(netAmount),
+      totalAdminClaimed: parseFloat(totalAdminClaimed)
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 // Function to get burn transactions
 const getBurnTransactions = async (req, res) => {
