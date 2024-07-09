@@ -38,6 +38,19 @@ const CasinoPage = () => {
           >
             BPlinko
           </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            component={Link}
+            to="/casino/blackjack"
+            sx={{
+              padding: '10px 20px',
+              fontSize: '18px',
+              minWidth: '200px',
+            }}
+          >
+            Blackjack
+          </Button>
           {/* Add more games here */}
         </Box>
       </Box>

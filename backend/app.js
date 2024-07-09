@@ -7,6 +7,7 @@ const transactionRoutes = require('./routes/transactionRoutes');
 const marketRoutes = require('./routes/marketRoutes');
 const plinkoRoutes = require('./routes/plinkoRoutes');
 const statsRoutes = require('./routes/statsRoutes');
+const blackjackRoutes = require('./routes/blackjackRoutes');
 
 const app = express();
 
@@ -20,5 +21,6 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/markets', marketRoutes);
 app.use('/api/plinko', plinkoRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/blackjack', blackjackRoutes);
 
 module.exports = app;

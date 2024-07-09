@@ -164,6 +164,35 @@ const getBurnTransactions = async () => {
   return makeRequest('/api/stats/burn-transactions', 'GET');
 };
 
+const createBlackjackHand = async ({ initialBPCharge }) => {
+  return makeRequest('/api/blackjack/create-hand', 'POST', { initialBPCharge });
+};
+
+const hitBlackjack = async (handId, handIndex) => {
+  return makeRequest(`/api/blackjack/hit/${handId}/${handIndex}`, 'POST');
+};
+
+const standBlackjack = async (handId, handIndex) => {
+  return makeRequest(`/api/blackjack/stand/${handId}/${handIndex}`, 'POST');
+};
+
+const doubleDownBlackjack = async (handId, handIndex) => {
+  return makeRequest(`/api/blackjack/double-down/${handId}/${handIndex}`, 'POST');
+};
+
+const splitBlackjack = async (handId, handIndex) => {
+  return makeRequest(`/api/blackjack/split/${handId}/${handIndex}`, 'POST');
+};
+
+const getCurrentBlackjack = async () => {
+  return makeRequest('/api/blackjack/current-hand', 'GET');
+};
+
+const getHandStatus = async (handId) => {
+  return makeRequest(`/api/blackjack/status/${handId}`, 'GET');
+};
+
+
 export {
   auth,
   provider,
@@ -196,5 +225,12 @@ export {
   playPlinko,
   getPlinkoResults,
   getBurnTransactions,
-  claimPlinkoProfits
+  claimPlinkoProfits,
+  createBlackjackHand,
+  hitBlackjack,
+  standBlackjack,
+  doubleDownBlackjack,
+  splitBlackjack,
+  getCurrentBlackjack,
+  getHandStatus,
 };

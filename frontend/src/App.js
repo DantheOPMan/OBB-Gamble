@@ -1,4 +1,3 @@
-// src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
@@ -16,6 +15,7 @@ import AuthenticatedRoute from './components/AuthenticatedRoute';
 import theme from './theme';
 import CasinoPage from './pages/CasinoPage';
 import BPlinkoPage from './pages/BPlinkoPage';
+import BlackjackPage from './pages/BlackjackPage';
 
 const App = () => {
   return (
@@ -38,6 +38,7 @@ const App = () => {
               <Route path="/profile" element={<UserProfile />} />
               <Route path="/casino" element={<CasinoPage />} />
               <Route path="/casino/bplinko" element={<BPlinkoPage />} />
+              <Route path="/casino/blackjack" element={<BlackjackPage />} />
             </Routes>
           </div>
         </AuthenticatedRoute>
