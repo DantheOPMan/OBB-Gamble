@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Box, Typography } from '@mui/material';
 import { getUser, auth } from '../firebase';
 import PlinkoBoard from '../components/PlinkoBoard';
@@ -6,20 +6,36 @@ import PlinkoBoard from '../components/PlinkoBoard';
 const BPLinkoPage = () => {
   const [balance, setBalance] = useState(0);
 
-
-  const fetchUserBalance = async () => {
+  const fetchUserBalance = useCallback(async () => {
     try {
       const userId = auth.currentUser.uid;
       const user = await getUser(userId);
-      setBalance(user.bpBalance);
+      setBalance(Number(user.bpBalance));
     } catch (error) {
       console.error('Error fetching user balance:', error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchUserBalance();
-  }, []);
+  }, [fetchUserBalance]);
+
+  const handleDropBalls = (amount) => {
+    const val = parseFloat(amount);
+    setBalance(prevBalance => {
+      const newBalance = prevBalance - val;
+      return newBalance
+    });
+  };
+
+  const handleBallLanded = (result) => {
+    const numericResult = parseFloat(result);
+
+    setBalance(prevBalance => {
+      const newBalance = prevBalance + numericResult;
+      return newBalance;
+    });
+  };
 
   return (
     <Container component="main" maxWidth="lg">
@@ -35,12 +51,11 @@ const BPLinkoPage = () => {
         }}
       >
         <Typography variant="h6" component="p" gutterBottom>
-          Current Balance: {balance} BP
+          Current Balance: {balance.toFixed(2)} BP
         </Typography>
         <PlinkoBoard
-          onResultUpdate={() => {
-            fetchUserBalance();
-          }}
+          onDropBalls={handleDropBalls}
+          onBallLanded={handleBallLanded}
         />
       </Box>
     </Container>

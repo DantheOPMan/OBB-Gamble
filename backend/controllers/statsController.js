@@ -5,13 +5,16 @@ const Transaction = require('../models/transactionModel');
 const getPlinkoResults = async (req, res) => {
   try {
     const results = await Plinko.find({});
-    
-    const totalWagered = results.reduce((sum, transaction) => sum + transaction.amount, 0).toFixed(1);
-    const totalReturned = results.reduce((sum, transaction) => sum + transaction.result, 0).toFixed(1);
+
+    // Filter out transactions related to 'burn' and 'adminClaim'
+    const filteredResults = results.filter(transaction => transaction.userId !== 'burn' && transaction.userId !== 'adminClaim');
+
+    const totalWagered = filteredResults.reduce((sum, transaction) => sum + parseFloat(transaction.amount), 0).toFixed(1);
+    const totalReturned = filteredResults.reduce((sum, transaction) => sum + parseFloat(transaction.result), 0).toFixed(1);
     const netAmount = (totalWagered - totalReturned).toFixed(1);
 
     res.status(200).json({
-      transactionCount: results.length,
+      transactionCount: filteredResults.length,
       totalWagered: parseFloat(totalWagered),
       totalReturned: parseFloat(totalReturned),
       netAmount: parseFloat(netAmount)

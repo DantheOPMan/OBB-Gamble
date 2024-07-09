@@ -1,5 +1,5 @@
 const User = require('../models/userModel');
-const Transaction = require('../models/transactionModel');  // Import the Transaction model
+const Transaction = require('../models/transactionModel');
 
 const registerUser = async (req, res) => {
   const { uid, email } = req.body;
@@ -68,7 +68,7 @@ const getUsers = async (req, res) => {
 
 const getUserTransactions = async (req, res) => {
   const { uid } = req.params;
-  
+
   if (uid !== req.user.uid && req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Forbidden: Cannot access another user\'s transactions' });
   }
@@ -86,5 +86,5 @@ module.exports = {
   getUser,
   updateUser,
   getUsers,
-  getUserTransactions
+  getUserTransactions,
 };

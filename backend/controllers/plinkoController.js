@@ -1,5 +1,6 @@
 const Plinko = require('../models/plinkoModel');
 const User = require('../models/userModel');
+const Transaction = require('../models/transactionModel'); 
 
 const numBuckets = 15;
 const stdDev = 1.9;
@@ -92,8 +93,8 @@ const claimProfits = async (req, res) => {
     const results = await Plinko.find({});
 
     // Calculate total wagered and total returned
-    const totalWagered = results.reduce((sum, transaction) => sum + transaction.amount, 0);
-    const totalReturned = results.reduce((sum, transaction) => sum + transaction.result, 0);
+    const totalWagered = results.reduce((sum, transaction) => sum + parseFloat(transaction.amount), 0);
+    const totalReturned = results.reduce((sum, transaction) => sum + parseFloat(transaction.result), 0);
     const netProfits = totalWagered - totalReturned;
 
     if (netProfits <= 0) {
@@ -106,6 +107,9 @@ const claimProfits = async (req, res) => {
 
     // Get all admin users
     const adminUsers = await User.find({ role: 'admin' });
+    if (adminUsers.length === 0) {
+      return res.status(400).json({ message: 'No admin users found to distribute profits' });
+    }
     const adminProfitPerUser = netProfitsAfterBurn / adminUsers.length;
 
     // Create transactions for burn and distribute profits to admins
@@ -142,7 +146,7 @@ const claimProfits = async (req, res) => {
       userId: 'adminClaim',
       amount: -netProfits,
       result: 0,
-      position: null,
+      position: 0,
     });
     await plinkoTransaction.save();
 
