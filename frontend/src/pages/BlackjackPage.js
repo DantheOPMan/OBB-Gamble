@@ -77,6 +77,7 @@ const BlackjackPage = () => {
     };
 
     const checkGameOutcome = useCallback(async (currentHand) => {
+        await fetchBpBalance();
         if (!handId) return;
 
         try {
