@@ -188,13 +188,10 @@ const getCurrentBlackjack = async () => {
   return makeRequest('/api/blackjack/current-hand', 'GET');
 };
 
-const getHandStatus = async (handId) => {
-  return makeRequest(`/api/blackjack/status/${handId}`, 'GET');
-};
-
 const getBlackjackStats = async () => {
   return makeRequest('/api/stats/blackjack-stats', 'GET');
 };
+
 
 export {
   auth,
@@ -235,6 +232,5 @@ export {
   doubleDownBlackjack,
   splitBlackjack,
   getCurrentBlackjack,
-  getHandStatus,
   getBlackjackStats,
 };

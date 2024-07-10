@@ -205,8 +205,8 @@ const approveTip = async (req, res) => {
     await transaction.save();
 
     const adminUsers = await User.find({ role: 'admin' });
-    const adminFee = Math.ceil(Math.abs(transaction.amount) * 0.05);
-    const burnAmount = Math.ceil(adminFee * 0.2);
+    const adminFee = Math.ceil(Math.abs(transaction.amount) * 0.03);
+    const burnAmount = Math.ceil(adminFee * 0.33);
     const netAdminFee = adminFee - burnAmount;
     const netAmount = Math.abs(transaction.amount) - adminFee;
     const adminFeePerUser = netAdminFee / adminUsers.length;

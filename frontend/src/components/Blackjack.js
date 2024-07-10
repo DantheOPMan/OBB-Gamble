@@ -56,6 +56,22 @@ const calculateHandValue = (hand) => {
     return value;
 };
 
+// Function to check if a hand can be split
+const canSplit = (hand) => {
+    if (hand.cards.length === 2) {
+        const card1Value = hand.cards[0].value;
+        const card2Value = hand.cards[1].value;
+        const tenValues = ['10', 'Jack', 'Queen', 'King'];
+        if (card1Value === card2Value) {
+            return true;
+        }
+        if (tenValues.includes(card1Value) && tenValues.includes(card2Value)) {
+            return true;
+        }
+    }
+    return false;
+};
+
 // Main Blackjack component
 const Blackjack = ({ hand, onHit, onStand, onDoubleDown, onSplit, gameOutcome }) => {
     const isGameOngoing = hand?.playerHands?.some(playerHand => playerHand.status === 'ongoing');
@@ -105,10 +121,15 @@ const Blackjack = ({ hand, onHit, onStand, onDoubleDown, onSplit, gameOutcome })
                                         <Box mt={2}>
                                             <StyledButton onClick={() => onHit(hand.handId, index)}>Hit Hand {index + 1}</StyledButton>
                                             <StyledButton onClick={() => onStand(hand.handId, index)}>Stand Hand {index + 1}</StyledButton>
-                                            <StyledButton onClick={() => onDoubleDown(hand.handId, index)}>Double Down Hand {index + 1}</StyledButton>
+                                            <StyledButton
+                                                onClick={() => onDoubleDown(hand.handId, index)}
+                                                disabled={playerHand.cards.length !== 2}
+                                            >
+                                                Double Down Hand {index + 1}
+                                            </StyledButton>
                                             <StyledButton
                                                 onClick={() => onSplit(hand.handId, index)}
-                                                disabled={playerHand.cards.length !== 2 || playerHand.cards[0].value !== playerHand.cards[1].value}
+                                                disabled={!canSplit(playerHand)}
                                             >
                                                 Split Hand {index + 1}
                                             </StyledButton>

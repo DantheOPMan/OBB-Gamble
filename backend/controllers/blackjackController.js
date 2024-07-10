@@ -60,9 +60,10 @@ const verifyUserOwnership = (hand, userId) => {
 const filterHandData = (hand) => {
     const handObj = hand.toObject();
     const filteredHand = {
-        handId: handObj._id, // Include the hand ID
+        handId: handObj._id,
         playerHands: handObj.playerHands,
         dealerVisibleCards: handObj.dealerVisibleCards,
+        status: handObj.status,
     };
     return filteredHand;
 };
@@ -177,7 +178,7 @@ const hit = async (req, res) => {
 
         // Check if the player hits 21
         if (hand.playerHands[handIndex].value === 21) {
-            // Call the stand logic directly
+            await hand.save();
             return await stand(req, res);
         } else if (hand.playerHands[handIndex].value > 21) {
             hand.playerHands[handIndex].status = 'bust';
@@ -195,7 +196,7 @@ const hit = async (req, res) => {
                 playerHand.status = outcome;
 
                 if (outcome === 'player_wins') {
-                    const payout = playerHand.bpCharged * 2;
+                    const payout = playerHand.bpCharged * 2.5;
                     user.bpBalance += payout;
                     playerHand.payout = payout;
                 } else if (outcome === 'tie') {
@@ -235,7 +236,6 @@ const stand = async (req, res) => {
         const allHandsStandOrBust = hand.playerHands.every(h => h.status !== 'ongoing');
         if (allHandsStandOrBust) {
             await finishDealerTurn(hand);
-            console.log("all hands resolved")
             const user = await User.findById(req.user._id);
             hand.playerHands.forEach(playerHand => {
                 
@@ -257,7 +257,6 @@ const stand = async (req, res) => {
 
             await user.save();
         }
-
         await hand.save();
         res.status(200).json(filterHandData(hand));
     } catch (error) {
@@ -344,7 +343,14 @@ const split = async (req, res) => {
 
         const user = await User.findById(req.user._id);
         const playerHand = hand.playerHands[handIndex];
-        if (playerHand.cards.length !== 2 || playerHand.cards[0].value !== playerHand.cards[1].value) {
+
+        // Check if the hand can be split
+        const tenValues = ['10', 'Jack', 'Queen', 'King'];
+        if (
+            playerHand.cards.length !== 2 || 
+            !(playerHand.cards[0].value === playerHand.cards[1].value || 
+              (tenValues.includes(playerHand.cards[0].value) && tenValues.includes(playerHand.cards[1].value)))
+        ) {
             return res.status(400).json({ message: 'Cannot split this hand' });
         }
 
@@ -389,6 +395,7 @@ const split = async (req, res) => {
     }
 };
 
+
 const getCurrentHand = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -402,17 +409,4 @@ const getCurrentHand = async (req, res) => {
     }
 };
 
-const getHandStatus = async (req, res) => {
-    try {
-        const { handId } = req.params;
-        const hand = await BlackjackHand.findById(handId);
-        if (!hand) {
-            return res.status(404).json({ message: 'Hand not found' });
-        }
-        res.status(200).json({ status: hand.status });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-module.exports = { createHand, hit, stand, doubleDown, split, getCurrentHand, getHandStatus };
+module.exports = { createHand, hit, stand, doubleDown, split, getCurrentHand };
