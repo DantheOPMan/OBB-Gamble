@@ -86,7 +86,7 @@ const Blackjack = ({ hand, onHit, onStand, onDoubleDown, onSplit, gameOutcome })
                         {gameOutcome === 'dealer_wins' && 'Dealer Wins!'}
                         {gameOutcome === 'tie' && 'It\'s a Tie!'}
                         {gameOutcome === 'dealer_blackjack' && 'Dealer has Blackjack!'}
-                        {gameOutcome === 'player_blackjack' && 'You have Blackjack!'}
+                        {gameOutcome === 'player_blackjack' && 'You have Blackjack! 2.5x Payout!'}
                     </Typography>
                 </Box>
             )}

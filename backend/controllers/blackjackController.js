@@ -126,7 +126,6 @@ const createHand = async (req, res) => {
         } else if (dealerValue === 21) {
             status = 'dealer_blackjack';
         }
-
         const newHand = new BlackjackHand({
             userId,
             deck,
@@ -145,10 +144,14 @@ const createHand = async (req, res) => {
         if (status === 'player_blackjack') {
             const payout = initialBPCharge * 2.5;
             user.bpBalance += payout;
+            newHand.status.playerHands[0].payout += payout;
             await user.save();
         } else if (status === 'tie') {
             user.bpBalance += initialBPCharge;
+            newHand.status.playerHands[0].payout += initialBPCharge;
             await user.save();
+        }else if (status === 'dealer_blackjack'){
+            newHand.dealerVisibleCards= [dealerHand[0], dealerHand[1]];
         }
 
         await newHand.save();
@@ -196,7 +199,7 @@ const hit = async (req, res) => {
                 playerHand.status = outcome;
 
                 if (outcome === 'player_wins') {
-                    const payout = playerHand.bpCharged * 2.5;
+                    const payout = playerHand.bpCharged * 2;
                     user.bpBalance += payout;
                     playerHand.payout = payout;
                 } else if (outcome === 'tie') {

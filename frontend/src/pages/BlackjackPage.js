@@ -93,7 +93,7 @@ const BlackjackPage = () => {
     const calculateTotalPayout = (currentHand) => {
         let payout = 0;
         currentHand.playerHands.forEach(playerHand => {
-            payout += playerHand.bpCharged;
+            payout += playerHand.payout;
         });
         setTotalPayout(payout);
     };
@@ -252,7 +252,6 @@ const BlackjackPage = () => {
                 </Paper>
             )}
             <Dialog open={showOutcomeDialog} onClose={handleCloseOutcomeDialog}>
-                <DarkDialogTitle>Game Outcome</DarkDialogTitle>
                 <DarkDialogContent>
                     <Typography variant="h6">
                         Total Payout: {totalPayout} BP
