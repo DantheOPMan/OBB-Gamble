@@ -1,5 +1,3 @@
-const express = require('express');
-const mongoose = require('mongoose');
 const BlackjackHand = require('../models/blackjackHandModel');
 const User = require('../models/userModel');
 
@@ -31,7 +29,7 @@ const getCardValue = (card) => {
     if (card.value === 'Ace') {
         return 11;
     }
-    return parseInt(card.value, 10);
+    return parseInt(card.value);
 };
 
 const calculateHandValue = (hand) => {
