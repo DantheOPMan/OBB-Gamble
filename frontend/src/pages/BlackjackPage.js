@@ -82,8 +82,8 @@ const BlackjackPage = () => {
         try {
             if (currentHand.status !== 'ongoing') {
                 calculateTotalPayout(currentHand);
-                setHand(currentHand);  // Ensure hand state is updated before showing dialog
-                setTimeout(() => setShowOutcomeDialog(true), 0);  // Show dialog after state update
+                setHand(currentHand);
+                setShowOutcomeDialog(true);            
             }
         } catch (error) {
             console.error('Error checking game outcome:', error);
@@ -108,13 +108,18 @@ const BlackjackPage = () => {
                     setHandId(currentHand.handId);
                     await checkGameOutcome(currentHand);
                 } else {
+                    console.log("hand reset")
                     setHand(null);
                     setHandId(null);
                 }
+
+                // Retrieve the last bet amount from local storage
+                const savedBetAmount = localStorage.getItem('betAmount');
+                if (savedBetAmount) {
+                    setBetAmount(savedBetAmount);
+                }
             } catch (error) {
                 console.error('Error fetching data:', error);
-                setHand(null);
-                setHandId(null);
             } finally {
                 setLoading(false);
             }
@@ -146,6 +151,8 @@ const BlackjackPage = () => {
         }
 
         try {
+            localStorage.setItem('betAmount', betAmount);
+
             const newHand = await createBlackjackHand({ initialBPCharge: Number(betAmount) });
             setHand(newHand);
             setHandId(newHand.handId);
