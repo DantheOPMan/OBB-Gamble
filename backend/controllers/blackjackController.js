@@ -59,13 +59,12 @@ const verifyUserOwnership = (hand, userId) => {
 
 const filterHandData = (hand) => {
     const handObj = hand.toObject();
-    const filteredHand = {
+    return {
         handId: handObj._id,
         playerHands: handObj.playerHands,
         dealerVisibleCards: handObj.dealerVisibleCards,
         status: handObj.status,
     };
-    return filteredHand;
 };
 
 const determineHandOutcome = (playerHand, dealerValue) => {
@@ -108,8 +107,7 @@ const createHand = async (req, res) => {
             return res.status(400).json({ message: 'Insufficient BP balance to start a new hand.' });
         }
 
-        // Deduct the initial BP charge from the user's balance
-        user.bpBalance -= initialBPCharge;
+        user.bpBalance = (user.bpBalance - initialBPCharge).toFixed(1);
         await user.save();
 
         const deck = createDeck();
@@ -118,14 +116,7 @@ const createHand = async (req, res) => {
         const playerValue = calculateHandValue(initialPlayerHand);
         const dealerValue = calculateHandValue(dealerHand);
 
-        let status = 'ongoing';
-        if (playerValue === 21 && dealerValue === 21) {
-            status = 'tie';
-        } else if (playerValue === 21) {
-            status = 'player_blackjack';
-        } else if (dealerValue === 21) {
-            status = 'dealer_blackjack';
-        }
+        let status = determineInitialStatus(playerValue, dealerValue);
         const newHand = new BlackjackHand({
             userId,
             deck,
@@ -141,20 +132,9 @@ const createHand = async (req, res) => {
             dealerVisibleCards: [dealerHand[0]],
         });
 
-        if (status === 'player_blackjack') {
-            const payout = initialBPCharge * 2.5;
-            user.bpBalance += payout;
-            newHand.status.playerHands[0].payout += payout;
-            await user.save();
-        } else if (status === 'tie') {
-            user.bpBalance += initialBPCharge;
-            newHand.status.playerHands[0].payout += initialBPCharge;
-            await user.save();
-        }else if (status === 'dealer_blackjack'){
-            newHand.dealerVisibleCards= [dealerHand[0], dealerHand[1]];
-        }
-
+        await handleInitialPayouts(user, newHand, initialBPCharge, status);
         await newHand.save();
+
         res.status(201).json(filterHandData(newHand));
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -170,49 +150,7 @@ const hit = async (req, res) => {
         }
         verifyUserOwnership(hand, req.user._id);
 
-        // Ensure the player is interacting with the current hand
-        if (handIndex > 0 && hand.playerHands[handIndex - 1].status === 'ongoing') {
-            return res.status(400).json({ message: 'You must complete the current hand before interacting with the next hand.' });
-        }
-
-        const card = hand.deck.pop();
-        hand.playerHands[handIndex].cards.push(card);
-        hand.playerHands[handIndex].value = calculateHandValue(hand.playerHands[handIndex].cards);
-
-        // Check if the player hits 21
-        if (hand.playerHands[handIndex].value === 21) {
-            await hand.save();
-            return await stand(req, res);
-        } else if (hand.playerHands[handIndex].value > 21) {
-            hand.playerHands[handIndex].status = 'bust';
-        }
-
-        // Save the hand and check if all hands are done
-        await hand.save();
-        const allHandsStandOrBust = hand.playerHands.every(h => h.status !== 'ongoing');
-        if (allHandsStandOrBust) {
-            await finishDealerTurn(hand);
-            const user = await User.findById(req.user._id);
-
-            hand.playerHands.forEach(playerHand => {
-                const outcome = determineHandOutcome(playerHand, hand.dealerValue);
-                playerHand.status = outcome;
-
-                if (outcome === 'player_wins') {
-                    const payout = playerHand.bpCharged * 2;
-                    user.bpBalance += payout;
-                    playerHand.payout = payout;
-                } else if (outcome === 'tie') {
-                    const payout = playerHand.bpCharged;
-                    user.bpBalance += payout;
-                    playerHand.payout = payout;
-                } else {
-                    playerHand.payout = 0;
-                }
-            });
-
-            await user.save();
-        }
+        await handleHit(hand, handIndex, req.user._id);
 
         res.status(200).json(filterHandData(hand));
     } catch (error) {
@@ -229,38 +167,8 @@ const stand = async (req, res) => {
         }
         verifyUserOwnership(hand, req.user._id);
 
-        // Ensure the player is interacting with the current hand
-        if (handIndex > 0 && hand.playerHands[handIndex - 1].status === 'ongoing') {
-            return res.status(400).json({ message: 'You must complete the current hand before interacting with the next hand.' });
-        }
+        await handleStand(hand, handIndex, req.user._id);
 
-        hand.playerHands[handIndex].status = 'stand';
-
-        const allHandsStandOrBust = hand.playerHands.every(h => h.status !== 'ongoing');
-        if (allHandsStandOrBust) {
-            await finishDealerTurn(hand);
-            const user = await User.findById(req.user._id);
-            hand.playerHands.forEach(playerHand => {
-                
-                const outcome = determineHandOutcome(playerHand, hand.dealerValue);
-                playerHand.status = outcome;
-
-                if (outcome === 'player_wins') {
-                    const payout = playerHand.bpCharged * 2;
-                    user.bpBalance += payout;
-                    playerHand.payout = payout;
-                } else if (outcome === 'tie') {
-                    const payout = playerHand.bpCharged;
-                    user.bpBalance += payout;
-                    playerHand.payout = payout;
-                } else {
-                    playerHand.payout = 0;
-                }
-            });
-
-            await user.save();
-        }
-        await hand.save();
         res.status(200).json(filterHandData(hand));
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -276,59 +184,8 @@ const doubleDown = async (req, res) => {
         }
         verifyUserOwnership(hand, req.user._id);
 
-        const user = await User.findById(req.user._id);
-        const playerHand = hand.playerHands[handIndex];
-        if (playerHand.cards.length !== 2) {
-            return res.status(400).json({ message: 'Can only double down on a hand with exactly 2 cards.' });
-        }
+        await handleDoubleDown(hand, handIndex, req.user._id);
 
-        const doubleBPCharge = playerHand.bpCharged;
-        if (user.bpBalance < doubleBPCharge) {
-            return res.status(400).json({ message: 'Insufficient BP balance to double down.' });
-        }
-
-        // Deduct the double BP charge from the user's balance
-        user.bpBalance -= doubleBPCharge;
-        await user.save();
-
-        const card = hand.deck.pop();
-        playerHand.cards.push(card);
-        playerHand.value = calculateHandValue(playerHand.cards);
-        playerHand.status = 'double_down';
-        playerHand.bpCharged += doubleBPCharge; // Update the BP charge for this hand
-
-        // Check if the player busts
-        if (playerHand.value > 21) {
-            playerHand.status = 'bust';
-        }
-
-        await finishDealerTurn(hand);
-
-        const allHandsStandOrBust = hand.playerHands.every(h => h.status !== 'ongoing');
-        if (allHandsStandOrBust) {
-            const user = await User.findById(req.user._id);
-
-            hand.playerHands.forEach(playerHand => {
-                const outcome = determineHandOutcome(playerHand, hand.dealerValue);
-                playerHand.status = outcome;
-
-                if (outcome === 'player_wins') {
-                    const payout = playerHand.bpCharged * 2;
-                    user.bpBalance += payout;
-                    playerHand.payout = payout;
-                } else if (outcome === 'tie') {
-                    const payout = playerHand.bpCharged;
-                    user.bpBalance += payout;
-                    playerHand.payout = payout;
-                } else {
-                    playerHand.payout = 0;
-                }
-            });
-
-            await user.save();
-        }
-
-        await hand.save();
         res.status(200).json(filterHandData(hand));
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -344,60 +201,13 @@ const split = async (req, res) => {
         }
         verifyUserOwnership(hand, req.user._id);
 
-        const user = await User.findById(req.user._id);
-        const playerHand = hand.playerHands[handIndex];
-
-        // Check if the hand can be split
-        const tenValues = ['10', 'Jack', 'Queen', 'King'];
-        if (
-            playerHand.cards.length !== 2 || 
-            !(playerHand.cards[0].value === playerHand.cards[1].value || 
-              (tenValues.includes(playerHand.cards[0].value) && tenValues.includes(playerHand.cards[1].value)))
-        ) {
-            return res.status(400).json({ message: 'Cannot split this hand' });
-        }
-
-        // Check if splitting will exceed the maximum number of hands (4)
-        if (hand.playerHands.length >= 8) {
-            return res.status(400).json({ message: 'Cannot split further, maximum number of hands reached.' });
-        }
-
-        const splitBPCharge = playerHand.bpCharged;
-        if (user.bpBalance < splitBPCharge) {
-            return res.status(400).json({ message: 'Insufficient BP balance to split the hand.' });
-        }
-
-        // Deduct the split BP charge for the new hand
-        user.bpBalance -= splitBPCharge;
-        await user.save();
-
-        const deck = hand.deck;
-
-        const newHand1 = {
-            cards: [playerHand.cards[0], deck.pop()],
-            value: 0,
-            status: 'ongoing',
-            bpCharged: playerHand.bpCharged, // Set the BP charge same as the initial hand
-        };
-        newHand1.value = calculateHandValue(newHand1.cards);
-
-        const newHand2 = {
-            cards: [playerHand.cards[1], deck.pop()],
-            value: 0,
-            status: 'ongoing',
-            bpCharged: playerHand.bpCharged, // Set the BP charge same as the initial hand
-        };
-        newHand2.value = calculateHandValue(newHand2.cards);
-
-        hand.playerHands.splice(handIndex, 1, newHand1, newHand2);
-        await hand.save();
+        await handleSplit(hand, handIndex, req.user._id);
 
         res.status(200).json(filterHandData(hand));
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
-
 
 const getCurrentHand = async (req, res) => {
     try {
@@ -410,6 +220,134 @@ const getCurrentHand = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
+};
+
+const determineInitialStatus = (playerValue, dealerValue) => {
+    if (playerValue === 21 && dealerValue === 21) {
+        return 'tie';
+    } else if (playerValue === 21) {
+        return 'player_blackjack';
+    } else if (dealerValue === 21) {
+        return 'dealer_blackjack';
+    }
+    return 'ongoing';
+};
+
+const handleInitialPayouts = async (user, hand, initialBPCharge, status) => {
+    if (status === 'player_blackjack') {
+        const payout = initialBPCharge * 2.5;
+        user.bpBalance = (parseFloat(user.bpBalance) + payout).toFixed(1);
+        hand.playerHands[0].payout = payout;
+    } else if (status === 'tie') {
+        user.bpBalance = (parseFloat(user.bpBalance) + initialBPCharge).toFixed(1);
+        hand.playerHands[0].payout = initialBPCharge;
+    } else if (status === 'dealer_blackjack') {
+        hand.dealerVisibleCards = hand.dealerHand;
+    }
+    await user.save();
+};
+
+const handleHit = async (hand, handIndex, userId) => {
+    const card = hand.deck.pop();
+    hand.playerHands[handIndex].cards.push(card);
+    hand.playerHands[handIndex].value = calculateHandValue(hand.playerHands[handIndex].cards);
+
+    if (hand.playerHands[handIndex].value === 21) {
+        await stand({ params: { handId: hand._id, handIndex } }, {});
+    } else if (hand.playerHands[handIndex].value > 21) {
+        hand.playerHands[handIndex].status = 'bust';
+        await handleDealerTurnIfAllDone(hand, userId);
+    }
+
+    await hand.save();
+};
+
+const handleStand = async (hand, handIndex, userId) => {
+    hand.playerHands[handIndex].status = 'stand';
+    await handleDealerTurnIfAllDone(hand, userId);
+    await hand.save();
+};
+
+const handleDoubleDown = async (hand, handIndex, userId) => {
+    const user = await User.findById(userId);
+    const playerHand = hand.playerHands[handIndex];
+    const doubleBPCharge = playerHand.bpCharged;
+
+    if (playerHand.cards.length !== 2 || user.bpBalance < doubleBPCharge) {
+        throw new Error('Invalid double down');
+    }
+
+    user.bpBalance = (parseFloat(user.bpBalance) - doubleBPCharge).toFixed(1);
+    await user.save();
+
+    const card = hand.deck.pop();
+    playerHand.cards.push(card);
+    playerHand.value = calculateHandValue(playerHand.cards);
+    playerHand.status = playerHand.value > 21 ? 'bust' : 'double_down';
+    playerHand.bpCharged += doubleBPCharge;
+
+    await handleDealerTurnIfAllDone(hand, userId);
+    await hand.save();
+};
+
+const handleSplit = async (hand, handIndex, userId) => {
+    const user = await User.findById(userId);
+    const playerHand = hand.playerHands[handIndex];
+    const splitBPCharge = playerHand.bpCharged;
+
+    const tenValues = ['10', 'Jack', 'Queen', 'King'];
+    const canSplit = playerHand.cards.length === 2 &&
+        (playerHand.cards[0].value === playerHand.cards[1].value ||
+        (tenValues.includes(playerHand.cards[0].value) && tenValues.includes(playerHand.cards[1].value)));
+
+    if (!canSplit || user.bpBalance < splitBPCharge || hand.playerHands.length >= 8) {
+        throw new Error('Invalid split');
+    }
+
+    user.bpBalance = (parseFloat(user.bpBalance) - splitBPCharge).toFixed(1);
+    await user.save();
+
+    const deck = hand.deck;
+    const newHands = [
+        { cards: [playerHand.cards[0], deck.pop()], value: 0, status: 'ongoing', bpCharged: playerHand.bpCharged },
+        { cards: [playerHand.cards[1], deck.pop()], value: 0, status: 'ongoing', bpCharged: playerHand.bpCharged }
+    ];
+
+    newHands.forEach(h => h.value = calculateHandValue(h.cards));
+    hand.playerHands.splice(handIndex, 1, ...newHands);
+
+    await hand.save();
+};
+
+const handleDealerTurnIfAllDone = async (hand, userId) => {
+    const allHandsStandOrBust = hand.playerHands.every(h => h.status !== 'ongoing');
+    if (allHandsStandOrBust) {
+        await finishDealerTurn(hand);
+        await calculatePayouts(hand, userId);
+    }
+};
+
+const calculatePayouts = async (hand, userId) => {
+    const user = await User.findById(userId);
+
+    hand.playerHands.forEach(playerHand => {
+        const outcome = determineHandOutcome(playerHand, hand.dealerValue);
+        playerHand.status = outcome;
+
+        if (outcome === 'player_wins') {
+            const payout = playerHand.bpCharged * 2;
+            user.bpBalance = (parseFloat(user.bpBalance) + payout).toFixed(1);
+            playerHand.payout = payout;
+        } else if (outcome === 'tie') {
+            const payout = playerHand.bpCharged;
+            user.bpBalance = (parseFloat(user.bpBalance) + payout).toFixed(1);
+            playerHand.payout = payout;
+        } else {
+            playerHand.payout = 0;
+        }
+    });
+
+    await user.save();
 };
 
 module.exports = { createHand, hit, stand, doubleDown, split, getCurrentHand };
