@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Typography, CircularProgress, Button, TextField, Container, Paper, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Typography, CircularProgress, Button, TextField, Container, Paper, Dialog, DialogContent, DialogActions, Snackbar } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { auth, createBlackjackHand, getCurrentBlackjack, hitBlackjack, standBlackjack, doubleDownBlackjack, splitBlackjack, getUser } from '../firebase';
 import Blackjack from '../components/Blackjack';
@@ -47,11 +47,6 @@ const DarkDialogContent = styled(DialogContent)(({ theme }) => ({
     color: theme.palette.common.white,
 }));
 
-const DarkDialogTitle = styled(DialogTitle)(({ theme }) => ({
-    backgroundColor: theme.palette.grey[900],
-    color: theme.palette.common.white,
-}));
-
 const DarkDialogActions = styled(DialogActions)(({ theme }) => ({
     backgroundColor: theme.palette.grey[900],
     color: theme.palette.common.white,
@@ -66,6 +61,8 @@ const BlackjackPage = () => {
     const [bpBalance, setBpBalance] = useState(0);
     const [showOutcomeDialog, setShowOutcomeDialog] = useState(false);
     const [totalPayout, setTotalPayout] = useState(0);
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
 
     const fetchBpBalance = async () => {
         try {
@@ -74,6 +71,11 @@ const BlackjackPage = () => {
         } catch (error) {
             console.error('Error fetching BP balance:', error);
         }
+    };
+
+    const showErrorToast = (message) => {
+        setSnackbarMessage(message);
+        setSnackbarOpen(true);
     };
 
     const checkGameOutcome = useCallback(async (currentHand) => {
@@ -88,6 +90,7 @@ const BlackjackPage = () => {
             }
         } catch (error) {
             console.error('Error checking game outcome:', error);
+            showErrorToast('Error checking game outcome');
         }
     }, [handId]);
 
@@ -162,6 +165,7 @@ const BlackjackPage = () => {
         } catch (error) {
             setError('Error creating hand or ongoing hand exists.');
             console.error('Error creating hand:', error);
+            showErrorToast('Error creating hand or ongoing hand exists');
         }
     };
 
@@ -171,6 +175,7 @@ const BlackjackPage = () => {
             setHand(updatedHand);
         } catch (error) {
             console.error('Error hitting:', error);
+            showErrorToast('Error hitting');
         }
     };
 
@@ -180,6 +185,7 @@ const BlackjackPage = () => {
             setHand(updatedHand);
         } catch (error) {
             console.error('Error standing:', error);
+            showErrorToast('Error standing');
         }
     };
 
@@ -189,6 +195,7 @@ const BlackjackPage = () => {
             setHand(updatedHand);
         } catch (error) {
             console.error('Error doubling down:', error);
+            showErrorToast('Error doubling down');
         }
     };
 
@@ -198,6 +205,7 @@ const BlackjackPage = () => {
             setHand(updatedHand);
         } catch (error) {
             console.error('Error splitting:', error);
+            showErrorToast('Error splitting');
         }
     };
 
@@ -215,6 +223,10 @@ const BlackjackPage = () => {
         } catch (error) {
             console.error('Error getting current hand:', error);
         }
+    };
+
+    const handleSnackbarClose = () => {
+        setSnackbarOpen(false);
     };
 
     if (loading) {
@@ -269,6 +281,13 @@ const BlackjackPage = () => {
                     </Button>
                 </DarkDialogActions>
             </Dialog>
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={6000}
+                onClose={handleSnackbarClose}
+                message={snackbarMessage}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            />
         </StyledContainer>
     );
 };

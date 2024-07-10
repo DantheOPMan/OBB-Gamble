@@ -358,7 +358,7 @@ const split = async (req, res) => {
         }
 
         // Check if splitting will exceed the maximum number of hands (4)
-        if (hand.playerHands.length >= 4) {
+        if (hand.playerHands.length >= 8) {
             return res.status(400).json({ message: 'Cannot split further, maximum number of hands reached.' });
         }
 
