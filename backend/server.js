@@ -1,5 +1,5 @@
 // backend/server.js
-const express = require('express');  // Make sure to require express here
+const express = require('express'); // Ensure to require express here
 const { app, server } = require('./app');
 const path = require('path');
 require('dotenv').config();

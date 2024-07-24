@@ -1,104 +1,95 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Typography, Button, Box } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import io from 'socket.io-client';
-import Player from './Player';
-
-const socket = io('http://localhost:3001');
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { listPokerTables, createPokerTable } from '../firebase';
+import { Container, Button, TextField, Typography, Paper, Grid } from '@mui/material';
+import { styled } from '@mui/system';
 
 const StyledContainer = styled(Container)(({ theme }) => ({
-  marginTop: theme.spacing(4),
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  backgroundColor: theme.palette.grey[800],
-  color: theme.palette.common.white,
-  padding: theme.spacing(3),
+  backgroundColor: theme.palette.grey[900],
+  padding: theme.spacing(4),
   borderRadius: theme.shape.borderRadius,
-  boxShadow: theme.shadows[5]
+  minHeight: '100vh',
+  color: theme.palette.common.white,
+}));
+
+const StyledPaper = styled(Paper)(({ theme }) => ({
+  backgroundColor: theme.palette.grey[800],
+  padding: theme.spacing(2),
+  marginBottom: theme.spacing(2),
+  color: theme.palette.common.white,
+}));
+
+const StyledButton = styled(Button)(({ theme }) => ({
+  margin: theme.spacing(1),
 }));
 
 const BPoker = () => {
-  const [gameState, setGameState] = useState({
-    deck: [],
-    players: [],
-    pot: 0,
-    currentPlayerIndex: 0,
-    remainingTime: 30
-  });
+  const [tables, setTables] = useState([]);
+  const [newTableName, setNewTableName] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
-    socket.on('gameState', (state) => {
-      setGameState(state);
-    });
-
-    return () => {
-      socket.off('gameState');
-    };
+    fetchTables();
   }, []);
 
-  useEffect(() => {
-    if (gameState.remainingTime === 0) {
-      handlePlayerAction(gameState.currentPlayerIndex, 'fold');
+  const fetchTables = async () => {
+    try {
+      const tablesList = await listPokerTables();
+      setTables(tablesList);
+      console.log(tablesList)
+    } catch (error) {
+      console.error('Failed to fetch tables:', error);
     }
-  }, [gameState.remainingTime]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (gameState.remainingTime > 0) {
-        setGameState((prevState) => ({
-          ...prevState,
-          remainingTime: prevState.remainingTime - 1
-        }));
-      }
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [gameState.remainingTime]);
-
-  const handlePlayerAction = (playerIndex, action) => {
-    socket.emit('playerAction', { playerIndex, action });
   };
 
-  const joinGame = (userId) => {
-    socket.emit('playerJoin', userId);
+  const handleCreateTable = async () => {
+    try {
+      await createPokerTable({ tableName: newTableName });
+      setNewTableName('');
+      fetchTables();
+    } catch (error) {
+      console.error('Failed to create table:', error);
+    }
   };
 
-  const leaveGame = () => {
-    socket.emit('playerLeave');
+  const handleViewTable = (tableId) => {
+    navigate(`/casino/poker/table/${tableId}`);
   };
 
   return (
     <StyledContainer>
-      <Typography variant="h3" align="center" gutterBottom>
-        Poker Game
+      <Typography variant="h4" gutterBottom>
+        Poker Tables
       </Typography>
-      <Typography variant="h6" align="center" gutterBottom>
-        Pot: {gameState.pot}
-      </Typography>
-      <Typography variant="h6" align="center" gutterBottom>
-        Current Player: {gameState.players[gameState.currentPlayerIndex]?.name}
-      </Typography>
-      <Typography variant="h6" align="center" gutterBottom>
-        Time Remaining: {gameState.remainingTime} seconds
-      </Typography>
-      <Box display="flex" flexWrap="wrap" justifyContent="center">
-        {gameState.players.map((player, index) => (
-          <Player
-            key={index}
-            player={player}
-            onFold={() => handlePlayerAction(index, 'fold')}
-            onCall={() => handlePlayerAction(index, 'call')}
-            onRaise={() => handlePlayerAction(index, 'raise')}
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={4}>
+          <Typography variant="h6">Available Tables</Typography>
+          {tables.map((table) => {
+            return (
+              <StyledPaper key={table.id}>
+                <Typography variant="h6">{table.name}</Typography>
+                <Typography variant="body1">Players: {table.players.length}/{table.maxPlayers}</Typography>
+                <StyledButton variant="contained" color="primary" onClick={() => handleViewTable(table.id)}>
+                  View Table
+                </StyledButton>
+              </StyledPaper>
+            );
+          })}
+          <TextField
+            label="Table Name"
+            value={newTableName}
+            onChange={(e) => setNewTableName(e.target.value)}
+            fullWidth
+            style={{ marginBottom: '1rem' }}
+            variant="filled"
+            InputProps={{ style: { color: 'white' } }}
+            InputLabelProps={{ style: { color: 'grey' } }}
           />
-        ))}
-      </Box>
-      <Button variant="contained" color="primary" onClick={() => joinGame('user-id')}>
-        Join Game
-      </Button>
-      <Button variant="contained" color="secondary" onClick={leaveGame}>
-        Leave Game
-      </Button>
+          <StyledButton variant="contained" color="secondary" onClick={handleCreateTable}>
+            Create Table
+          </StyledButton>
+        </Grid>
+      </Grid>
     </StyledContainer>
   );
 };
