@@ -35,6 +35,7 @@ const dealCards = (deck, numberOfPlayers) => {
 };
 
 const determineWinningHand = (players, boardCards) => {
+    console.log('determine winning hand');
     let bestHand = null;
     let bestPlayers = [];
 
@@ -57,7 +58,7 @@ const determineWinningHand = (players, boardCards) => {
 
         // Evaluate the hand
         const handResult = pokerEvaluator.evalHand(handStrings);
-        
+
         // Determine if this hand is better than the current best
         if (!bestHand || handResult.value > bestHand.value) {
             bestHand = handResult;
@@ -78,6 +79,7 @@ const rotateBlinds = (table) => {
 };
 
 const startGame = async (io, tableId) => {
+    console.log('start game');
     try {
         if (!mongoose.Types.ObjectId.isValid(tableId)) {
             throw new Error('Invalid table ID');
@@ -85,7 +87,7 @@ const startGame = async (io, tableId) => {
 
         const table = gameState[tableId];
 
-        const activePlayers = table.players.filter(player => player.status === 'waiting' || player.status === 'active');
+        const activePlayers = table.players.filter(player => player.status === 'active');
         if (activePlayers.length < 2) {
             console.log('Not enough players to start the game.');
             return;
@@ -101,6 +103,7 @@ const startGame = async (io, tableId) => {
             hand: playerHands[index],
             status: 'active',
             bet: 0,
+            hasActed: false // Initialize hasActed
         }));
 
         table.players[table.smallBlindIndex].bet = table.smallBlind;
@@ -109,7 +112,7 @@ const startGame = async (io, tableId) => {
 
         table.deck = newDeck;
         table.currentPlayerIndex = (table.bigBlindIndex + 1) % table.players.length;
-        table.remainingTime = 15;
+        table.remainingTime = 30;
         table.boardCards = [];
         table.stage = 'pre-flop';
 
@@ -121,7 +124,18 @@ const startGame = async (io, tableId) => {
     }
 };
 
+const clearTurnTimer = (tableId) => {
+    const table = gameState[tableId];
+    if (table && table.intervalId) {
+        clearInterval(table.intervalId);
+        table.intervalId = null;
+    }
+};
+
 const startTurnTimer = (io, tableId) => {
+    console.log('start turn timer');
+    clearTurnTimer(tableId); // Clear any existing timer before starting a new one
+
     const intervalId = setInterval(() => {
         const table = gameState[tableId];
         if (!table) return;
@@ -150,20 +164,36 @@ const startTurnTimer = (io, tableId) => {
 };
 
 const moveToNextPlayer = (io, tableId) => {
+    clearTurnTimer(tableId);
+    console.log('move to next player');
     const table = gameState[tableId];
+    console.log(table.currentPlayerIndex);
+    const highestBet = Math.max(...table.players.map(p => p.bet));
+    clearTurnTimer(tableId);
 
-    do {
-        table.currentPlayerIndex = (table.currentPlayerIndex + 1) % table.players.length;
-    } while (table.players[table.currentPlayerIndex].status !== 'active' && table.players[table.currentPlayerIndex].status !== 'all-in');
+    const allActedOnce = table.players.every((player, index) => player.status !== 'active' || player.hasActed);
+    if (allActedOnce && table.players.every(p => p.bet === highestBet || p.status === 'all-in')) {
+        // All players have acted and all bets are equal, proceed to the next stage
+        dealerAction(io, tableId);
+    } else {
+        do {
+            table.currentPlayerIndex = (table.currentPlayerIndex + 1) % table.players.length;
+        } while (table.players[table.currentPlayerIndex].status !== 'active');
+        
+        console.log(table.currentPlayerIndex);
 
-    table.remainingTime = 15;
-
-    table.players.forEach(player => {
-        io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
-    });
+        table.remainingTime = 30;
+        table.players.forEach(player => {
+            io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
+        });
+        
+        startTurnTimer(io, tableId);
+    }
 };
 
+
 const handlePlayerAction = (io, tableId, playerIndex, action, amount) => {
+    console.log('handle player action');
     const table = gameState[tableId];
     const player = table.players[playerIndex];
     const highestBet = Math.max(...table.players.map(p => p.bet));
@@ -201,38 +231,45 @@ const handlePlayerAction = (io, tableId, playerIndex, action, amount) => {
             console.error('Unknown action:', action);
     }
 
+    player.hasActed = true;
+
     table.lastActivity = new Date();
 
-    if (table.players.every(p => p.status !== 'active' || p.bet === highestBet || p.status === 'all-in')) {
-        dealerAction(io, tableId);
-    } else {
-        moveToNextPlayer(io, tableId);
+    const activePlayers = table.players.filter(p => p.status === 'active');
+    if (activePlayers.length <= 1) {
+        endRound(io, tableId);
+        return;
     }
+
+    moveToNextPlayer(io, tableId);
 };
 
 const endRound = async (io, tableId) => {
+    console.log('end round');
     const table = gameState[tableId];
     const activePlayers = table.players.filter(player => player.status === 'active');
+    let winners = [];
+    let splitPot = 0;
+
     if (activePlayers.length === 1) {
         const winner = activePlayers[0];
-        winner.status = 'waiting';
+        winners = [winner];
+        splitPot = table.pot;
+        winner.status = 'active';
         winner.bet = 0;
 
         const user = await User.findOne({ uid: winner.uid });
         user.handsWon += 1;
         await user.save();
-
-        table.pot = 0;
     } else {
-        const winners = determineWinningHand(activePlayers, table.boardCards);
+        winners = determineWinningHand(activePlayers, table.boardCards);
+        splitPot = table.pot / winners.length;
 
-        const splitPot = table.pot / winners.length;
         for (const winner of winners) {
             const user = await User.findOne({ uid: winner.uid });
             user.handsWon += 1;
             await user.save();
         }
-        table.pot = 0;
     }
 
     for (const player of table.players) {
@@ -241,28 +278,29 @@ const endRound = async (io, tableId) => {
         await user.save();
 
         player.bet = 0;
-        player.status = 'waiting';
+        player.status = 'active';
+        player.hasActed = false;
     }
 
-    table.stage = 'pre-flop';
-    table.boardCards = [];
-    table.deck = shuffleDeck(createDeck());
-    const playerHands = dealCards(table.deck, table.players.length);
-    table.players.forEach((player, index) => {
-        player.hand = playerHands[index];
+    table.pot = 0;
+
+    io.to(tableId).emit('gameState', getPublicGameState(tableId, null));
+    io.to(tableId).emit('roundEnd', {
+        winners: winners.map(winner => winner.obkUsername),
+        pot: splitPot
     });
 
-    table.players.forEach(player => {
-        io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
-    });
-
+    // Start the next game round after a delay
     setTimeout(() => {
         startGame(io, tableId);
-    }, 5000);
+    }, 7000);
 };
 
 const dealerAction = (io, tableId) => {
+    console.log('dealer action');
+
     const table = gameState[tableId];
+    const previousPlayerIndex = table.currentPlayerIndex;
 
     switch (table.stage) {
         case 'pre-flop':
@@ -284,7 +322,25 @@ const dealerAction = (io, tableId) => {
             return;
     }
 
-    moveToNextPlayer(io, tableId);
+    // Reset hasActed for all players for the new betting round
+    table.players = table.players.map(player => ({
+        ...player,
+        hasActed: false
+    }));
+    
+    table.currentPlayerIndex = -1;
+
+    // Show the new table state with the updated board cards to all players
+    table.players.forEach(player => {
+        io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
+    });
+
+    setTimeout(() => {
+        // Restore the previous player index
+        table.currentPlayerIndex = previousPlayerIndex;
+        moveToNextPlayer(io, tableId);
+    }, 5000);
+
 };
 
 const playerJoin = async (io, socket, userId, tableId) => {
@@ -312,22 +368,25 @@ const playerJoin = async (io, socket, userId, tableId) => {
                 ...dbTable.toObject(),
                 players: dbTable.players.map(player => ({
                     uid: player.uid,
-                    hand: [],
-                    status: 'waiting',
-                    bet: 0,
-                    obkUsername: player.obkUsername
+                    socketId: player.socketId,
+                    hand: player.hand,
+                    status: player.status,
+                    bet: player.bet,
+                    handVisible: player.handVisible,
+                    obkUsername: player.obkUsername,
+                    bpBalance: player.bpBalance // Include bpBalance
                 })),
-                spectators: [],
-                pot: 0,
-                currentPlayerIndex: 0,
-                remainingTime: 15,
-                boardCards: [],
-                stage: 'pre-flop',
+                spectators: dbTable.spectators,
+                pot: dbTable.pot,
+                currentPlayerIndex: dbTable.currentPlayerIndex,
+                remainingTime: dbTable.remainingTime,
+                boardCards: dbTable.boardCards,
+                stage: dbTable.stage,
                 bigBlind: dbTable.bigBlind,
                 smallBlind: dbTable.smallBlind,
                 smallBlindIndex: dbTable.smallBlindIndex,
                 bigBlindIndex: dbTable.bigBlindIndex,
-                lastActivity: new Date(),
+                lastActivity: dbTable.lastActivity
             };
             table = gameState[tableId];
         }
@@ -341,9 +400,10 @@ const playerJoin = async (io, socket, userId, tableId) => {
                 uid: userId,
                 socketId: socket.id,
                 hand: [],
-                status: 'waiting',
+                status: 'active',
                 bet: 0,
-                obkUsername: user.obkUsername
+                obkUsername: user.obkUsername,
+                bpBalance: user.bpBalance // Include bpBalance
             });
         }
 
@@ -355,7 +415,7 @@ const playerJoin = async (io, socket, userId, tableId) => {
             io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
         });
 
-        const activePlayers = table.players.filter(player => player.status === 'waiting' || player.status === 'active');
+        const activePlayers = table.players.filter(player => player.status === 'active');
         if (activePlayers.length >= 2) {
             startGame(io, tableId);
         }
@@ -405,7 +465,7 @@ const spectatorJoin = async (io, socket, tableId) => {
                 players: dbTable.players.map(player => ({
                     uid: player.uid,
                     hand: [],
-                    status: 'waiting',
+                    status: 'active',
                     bet: 0,
                     obkUsername: player.obkUsername,
                 })),
@@ -456,6 +516,7 @@ const getPublicGameState = (tableId, userId) => {
             bet: player.bet,
             hand: player.uid === userId ? player.hand : null,
             obkUsername: player.obkUsername,
+            bpBalance: player.bpBalance
         })),
         pot: table.pot,
         currentPlayerIndex: table.currentPlayerIndex,
@@ -464,6 +525,8 @@ const getPublicGameState = (tableId, userId) => {
         stage: table.stage,
         bigBlind: table.bigBlind,
         smallBlind: table.smallBlind,
+        smallBlindIndex: table.smallBlindIndex,
+        bigBlindIndex: table.bigBlindIndex
     };
 };
 

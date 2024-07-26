@@ -10,7 +10,9 @@ const pokerTableSchema = new mongoose.Schema({
             status: { type: String, default: 'waiting' },
             bet: { type: Number, default: 0 },
             handVisible: { type: Boolean, default: false },
-            obkUsername: { type: String }
+            obkUsername: { type: String },
+            hasActed: { type: Boolean, default: false },
+            bpBalance: { type: Number, default: 0 } 
         }
     ],
     spectators: [{ socketId: String }],

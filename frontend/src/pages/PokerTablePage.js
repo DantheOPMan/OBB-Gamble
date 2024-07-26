@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { auth, getUser } from '../firebase';
-import { Container, Button, Typography, Card, CardContent, Snackbar, TextField, Box } from '@mui/material';
+import { Container, Button, Typography, Card, CardContent, TextField, Box, Modal, Fade } from '@mui/material';
 import { styled } from '@mui/system';
 import MuiAlert from '@mui/material/Alert';
 
@@ -107,8 +107,8 @@ const PlayingCard = styled('div')(({ theme }) => ({
 }));
 
 const suitSymbols = {
-  Hearts: '♥',
-  Diamonds: '♦',
+  Hearts: <span style={{ color: 'red' }}>♥</span>,
+  Diamonds: <span style={{ color: 'red' }}>♦</span>,
   Clubs: '♣',
   Spades: '♠'
 };
@@ -117,13 +117,28 @@ const Alert = React.forwardRef(function Alert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
 
+const StyledModalBox = styled(Box)(({ theme }) => ({
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 400,
+  bgcolor: theme.palette.grey[800],
+  boxShadow: 24,
+  p: 4,
+  borderRadius: 2,
+  color: theme.palette.common.white,
+}));
+
 const PokerTablePage = () => {
   const { tableId } = useParams();
   const [socket, setSocket] = useState(null);
   const [gameState, setGameState] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [errorDetails, setErrorDetails] = useState('');
   const [errorOpen, setErrorOpen] = useState(false);
   const [raiseAmount, setRaiseAmount] = useState(0);
+  const [roundEndInfo, setRoundEndInfo] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -149,23 +164,40 @@ const PokerTablePage = () => {
       newSocket.on('error', (error) => {
         console.error('Socket error:', error);
         setErrorMessage(error.message || 'An error occurred');
+        setErrorDetails(error.details || '');
         setErrorOpen(true);
+        setTimeout(() => {
+          setErrorOpen(false);
+        }, 7000);
       });
 
       newSocket.on('connect_error', (error) => {
         console.error('Socket connect_error:', error);
         setErrorMessage('Failed to connect to the server');
         setErrorOpen(true);
+        setTimeout(() => {
+          setErrorOpen(false);
+        }, 7000);
       });
 
       newSocket.on('reconnect', (attemptNumber) => {
         console.log(`Socket reconnected after ${attemptNumber} attempts`);
       });
-
+ 
       newSocket.on('winners', ({ winningUsernames }) => {
         console.log('Winning Players:', winningUsernames);
         setErrorMessage(`Winning Players: ${winningUsernames.join(', ')}`);
         setErrorOpen(true);
+        setTimeout(() => {
+          setErrorOpen(false);
+        }, 7000);
+      });
+
+      newSocket.on('roundEnd', ({ winners, pot }) => {
+        setRoundEndInfo({ winners, pot });
+        setTimeout(() => {
+          setRoundEndInfo(null);
+        }, 7000);
       });
 
       setSocket(newSocket);
@@ -186,6 +218,9 @@ const PokerTablePage = () => {
       console.error('Failed to join table:', error);
       setErrorMessage('Failed to join table');
       setErrorOpen(true);
+      setTimeout(() => {
+        setErrorOpen(false);
+      }, 7000);
     }
   };
 
@@ -198,6 +233,9 @@ const PokerTablePage = () => {
         console.error('Player not found in game state.');
         setErrorMessage('Player not found in game state');
         setErrorOpen(true);
+        setTimeout(() => {
+          setErrorOpen(false);
+        }, 7000);
       }
     }
   };
@@ -208,6 +246,10 @@ const PokerTablePage = () => {
 
   const handleCloseError = () => {
     setErrorOpen(false);
+  };
+
+  const handleCloseRoundEnd = () => {
+    setRoundEndInfo(null);
   };
 
   const isPlayerTurn = () => {
@@ -228,6 +270,7 @@ const PokerTablePage = () => {
               <Typography variant="subtitle1" noWrap>{player.obkUsername || '?'}</Typography>
               <Typography variant="body2">Status: {player.status || '?'}</Typography>
               <Typography variant="body2">Bet: {player.bet || '?'}</Typography>
+              <Typography variant="body2">Balance: {player.bpBalance || '?'}</Typography> {/* Display bpBalance */}
               {isSmallBlind && <Typography variant="body2" color="secondary">(Small Blind)</Typography>}
               {isBigBlind && <Typography variant="body2" color="primary">(Big Blind)</Typography>}
               {auth.currentUser.uid === player.uid && player.hand && (
@@ -352,11 +395,29 @@ const PokerTablePage = () => {
       ) : (
         <Typography variant="h6">Loading table...</Typography>
       )}
-      <Snackbar open={errorOpen} autoHideDuration={6000} onClose={handleCloseError}>
-        <Alert onClose={handleCloseError} severity="error">
-          {errorMessage}
-        </Alert>
-      </Snackbar>
+      <Modal open={errorOpen} onClose={handleCloseError} closeAfterTransition>
+        <Fade in={errorOpen}>
+          <StyledModalBox>
+            <Alert onClose={handleCloseError} severity="error" sx={{ bgcolor: 'grey.900' }}>
+              {errorMessage}
+              {errorDetails && (
+                <Typography variant="body2" sx={{ mt: 2 }}>
+                  {errorDetails}
+                </Typography>
+              )}
+            </Alert>
+          </StyledModalBox>
+        </Fade>
+      </Modal>
+      <Modal open={roundEndInfo !== null} onClose={handleCloseRoundEnd} closeAfterTransition>
+        <Fade in={roundEndInfo !== null}>
+          <StyledModalBox>
+            <Alert onClose={handleCloseRoundEnd} severity="info" sx={{ bgcolor: 'grey.900' }}>
+              {roundEndInfo && `Winners: ${roundEndInfo.winners.join(', ')} | Pot: ${roundEndInfo.pot}`}
+            </Alert>
+          </StyledModalBox>
+        </Fade>
+      </Modal>
     </StyledContainer>
   );
 };
