@@ -142,70 +142,78 @@ const PokerTablePage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (tableId && auth.currentUser) {
-      const newSocket = io('http://localhost:3001', {
-        path: '/socket.io'
-      });
+    const setupSocket = async () => {
+      if (tableId && auth.currentUser) {
+        const token = await auth.currentUser.getIdToken();
 
-      newSocket.on('connect', () => {
-        console.log('Socket connected');
-        newSocket.emit('spectatorJoin', { tableId });
-      });
+        const newSocket = io('http://localhost:3001', {
+          path: '/socket.io',
+          auth: { token } // Add the token here
+        });
 
-      newSocket.on('gameState', (state) => {
-        console.log('Game State:', state);
-        setGameState(state);
-      });
+        newSocket.on('connect', () => {
+          console.log('Socket connected');
+          newSocket.emit('spectatorJoin', { tableId });
+        });
 
-      newSocket.on('disconnect', () => {
-        console.log('Socket disconnected');
-      });
+        newSocket.on('gameState', (state) => {
+          console.log('Game State:', state);
+          setGameState(state);
+        });
 
-      newSocket.on('error', (error) => {
-        console.error('Socket error:', error);
-        setErrorMessage(error.message || 'An error occurred');
-        setErrorDetails(error.details || '');
-        setErrorOpen(true);
-        setTimeout(() => {
-          setErrorOpen(false);
-        }, 7000);
-      });
+        newSocket.on('disconnect', () => {
+          console.log('Socket disconnected');
+        });
 
-      newSocket.on('connect_error', (error) => {
-        console.error('Socket connect_error:', error);
-        setErrorMessage('Failed to connect to the server');
-        setErrorOpen(true);
-        setTimeout(() => {
-          setErrorOpen(false);
-        }, 7000);
-      });
+        newSocket.on('error', (error) => {
+          console.error('Socket error:', error);
+          setErrorMessage(error.message || 'An error occurred');
+          setErrorDetails(error.details || '');
+          setErrorOpen(true);
+          setTimeout(() => {
+            setErrorOpen(false);
+          }, 7000);
+        });
 
-      newSocket.on('reconnect', (attemptNumber) => {
-        console.log(`Socket reconnected after ${attemptNumber} attempts`);
-      });
- 
-      newSocket.on('winners', ({ winningUsernames }) => {
-        console.log('Winning Players:', winningUsernames);
-        setErrorMessage(`Winning Players: ${winningUsernames.join(', ')}`);
-        setErrorOpen(true);
-        setTimeout(() => {
-          setErrorOpen(false);
-        }, 7000);
-      });
+        newSocket.on('connect_error', (error) => {
+          console.error('Socket connect_error:', error);
+          setErrorMessage('Failed to connect to the server');
+          setErrorDetails(error.message || '');
+          setErrorOpen(true);
+          setTimeout(() => {
+            setErrorOpen(false);
+          }, 7000);
+        });
 
-      newSocket.on('roundEnd', ({ winners, pot }) => {
-        setRoundEndInfo({ winners, pot });
-        setTimeout(() => {
-          setRoundEndInfo(null);
-        }, 7000);
-      });
+        newSocket.on('reconnect', (attemptNumber) => {
+          console.log(`Socket reconnected after ${attemptNumber} attempts`);
+        });
 
-      setSocket(newSocket);
+        newSocket.on('winners', ({ winningUsernames }) => {
+          console.log('Winning Players:', winningUsernames);
+          setErrorMessage(`Winning Players: ${winningUsernames.join(', ')}`);
+          setErrorOpen(true);
+          setTimeout(() => {
+            setErrorOpen(false);
+          }, 7000);
+        });
 
-      return () => {
-        newSocket.disconnect();
-      };
-    }
+        newSocket.on('roundEnd', ({ winners, pot }) => {
+          setRoundEndInfo({ winners, pot });
+          setTimeout(() => {
+            setRoundEndInfo(null);
+          }, 7000);
+        });
+
+        setSocket(newSocket);
+
+        return () => {
+          newSocket.disconnect();
+        };
+      }
+    };
+
+    setupSocket();
   }, [tableId]);
 
   const handleJoinTable = async () => {
@@ -217,10 +225,17 @@ const PokerTablePage = () => {
     } catch (error) {
       console.error('Failed to join table:', error);
       setErrorMessage('Failed to join table');
+      setErrorDetails(error.message || '');
       setErrorOpen(true);
       setTimeout(() => {
         setErrorOpen(false);
       }, 7000);
+    }
+  };
+
+  const handleLeaveTable = () => {
+    if (socket) {
+      socket.emit('playerLeave', { tableId });
     }
   };
 
@@ -253,14 +268,25 @@ const PokerTablePage = () => {
   };
 
   const isPlayerTurn = () => {
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
     return currentPlayer && currentPlayer.uid === auth.currentUser.uid;
   };
 
+  const hasLeftGame = () => {
+    const currentPlayer = gameState?.players.find(player => player.uid === auth.currentUser.uid);
+    return currentPlayer && currentPlayer.status === 'left';
+  };
+
+  const highestBet = gameState ? Math.max(...gameState.players.map(p => p.bet)) : 0;
+  const currentPlayer = gameState?.players.find(player => player.uid === auth.currentUser.uid);
+
+  const betOrRaiseLabel = (currentPlayer && currentPlayer.bet === highestBet) ? 'Bet Amount' : 'Raise Amount';
+  const isBetOrRaiseEnabled = isPlayerTurn() && !hasLeftGame() && raiseAmount > 0;
+
   const renderPlayer = (player, index) => {
-    const isActive = gameState.currentPlayerIndex === index;
-    const isSmallBlind = gameState.smallBlindIndex === index;
-    const isBigBlind = gameState.bigBlindIndex === index;
+    const isActive = gameState?.currentPlayerIndex === index;
+    const isSmallBlind = gameState?.smallBlindIndex === index;
+    const isBigBlind = gameState?.bigBlindIndex === index;
 
     return (
       <StyledCard key={index} className={isActive ? 'active' : ''}>
@@ -340,21 +366,29 @@ const PokerTablePage = () => {
             >
               Join Table
             </StyledButton>
+            <StyledButton
+              variant="contained"
+              color="secondary"
+              onClick={handleLeaveTable}
+              disabled={!gameState.players.some(player => player.uid === auth.currentUser.uid)}
+            >
+              Leave Game
+            </StyledButton>
             <TextField
               type="number"
-              label="Raise Amount"
+              label={betOrRaiseLabel}
               value={raiseAmount}
               onChange={(e) => setRaiseAmount(Number(e.target.value))}
               variant="filled"
               InputProps={{ style: { color: 'white' } }}
               InputLabelProps={{ style: { color: 'grey' } }}
-              disabled={!isPlayerTurn()}
+              disabled={!isPlayerTurn() || hasLeftGame()}
             />
             <StyledButton
               variant="contained"
               color="secondary"
               onClick={() => handlePlayerAction('bet', raiseAmount)}
-              disabled={!isPlayerTurn()}
+              disabled={!isBetOrRaiseEnabled || !isPlayerTurn() || hasLeftGame() || currentPlayer?.bet !== highestBet}
             >
               Bet
             </StyledButton>
@@ -362,15 +396,23 @@ const PokerTablePage = () => {
               variant="contained"
               color="secondary"
               onClick={() => handlePlayerAction('call')}
-              disabled={!isPlayerTurn()}
+              disabled={!isPlayerTurn() || hasLeftGame() || currentPlayer?.bet >= highestBet}
             >
               Call
             </StyledButton>
             <StyledButton
               variant="contained"
               color="secondary"
+              onClick={() => handlePlayerAction('raise', raiseAmount)}
+              disabled={!isBetOrRaiseEnabled || !isPlayerTurn() || hasLeftGame() || currentPlayer?.bet === highestBet}
+            >
+              Raise
+            </StyledButton>
+            <StyledButton
+              variant="contained"
+              color="secondary"
               onClick={() => handlePlayerAction('fold')}
-              disabled={!isPlayerTurn()}
+              disabled={!isPlayerTurn() || hasLeftGame()}
             >
               Fold
             </StyledButton>
@@ -378,7 +420,7 @@ const PokerTablePage = () => {
               variant="contained"
               color="secondary"
               onClick={() => handlePlayerAction('check')}
-              disabled={!isPlayerTurn()}
+              disabled={!isPlayerTurn() || hasLeftGame() || currentPlayer?.bet < highestBet}
             >
               Check
             </StyledButton>
@@ -386,7 +428,7 @@ const PokerTablePage = () => {
               variant="contained"
               color="secondary"
               onClick={() => handlePlayerAction('all-in')}
-              disabled={!isPlayerTurn()}
+              disabled={!isPlayerTurn() || hasLeftGame()}
             >
               All in
             </StyledButton>

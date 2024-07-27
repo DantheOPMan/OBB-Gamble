@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const User = require('../models/userModel');
 const PokerTable = require('../models/pokerTableModel');
 const pokerEvaluator = require('poker-evaluator');
+const admin = require('firebase-admin');
 
 const suits = ['Hearts', 'Diamonds', 'Clubs', 'Spades'];
 const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'Jack', 'Queen', 'King', 'Ace'];
@@ -85,7 +86,10 @@ const startGame = async (io, tableId) => {
             throw new Error('Invalid table ID');
         }
 
-        const table = gameState[tableId];
+        let table = gameState[tableId];
+
+        // Remove all players who have left before starting a new hand
+        table.players = table.players.filter(player => player.status !== 'left');
 
         const activePlayers = table.players.filter(player => player.status === 'active');
         if (activePlayers.length < 2) {
@@ -115,6 +119,8 @@ const startGame = async (io, tableId) => {
         table.remainingTime = 30;
         table.boardCards = [];
         table.stage = 'pre-flop';
+
+        table.lastActivity = new Date();
 
         io.to(tableId).emit('gameState', getPublicGameState(tableId));
 
@@ -146,7 +152,14 @@ const startTurnTimer = (io, tableId) => {
             table.remainingTime -= 1;
         } else {
             if (currentPlayer && currentPlayer.status === 'active') {
-                currentPlayer.status = 'folded';
+                const highestBet = Math.max(...table.players.map(p => p.bet));
+                if (currentPlayer.bet < highestBet) {
+                    handlePlayerAction(io, tableId, table.currentPlayerIndex, 'fold');
+                    io.to(currentPlayer.socketId).emit('message', 'You have been folded due to timeout.');
+                } else {
+                    handlePlayerAction(io, tableId, table.currentPlayerIndex, 'check');
+                    io.to(currentPlayer.socketId).emit('message', 'You have been checked due to timeout.');
+                }
             }
             moveToNextPlayer(io, tableId);
 
@@ -155,6 +168,7 @@ const startTurnTimer = (io, tableId) => {
                 endRound(io, tableId);
             }
         }
+        io.to(`${tableId}-spectators`).emit('gameState', getPublicGameState(tableId));
         table.players.forEach(player => {
             io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
         });
@@ -171,22 +185,23 @@ const moveToNextPlayer = (io, tableId) => {
     const highestBet = Math.max(...table.players.map(p => p.bet));
     clearTurnTimer(tableId);
 
-    const allActedOnce = table.players.every((player, index) => player.status !== 'active' || player.hasActed);
+    const allActedOnce = table.players.every((player) => player.status !== 'active' || player.hasActed);
     if (allActedOnce && table.players.every(p => p.bet === highestBet || p.status === 'all-in')) {
         // All players have acted and all bets are equal, proceed to the next stage
         dealerAction(io, tableId);
     } else {
         do {
             table.currentPlayerIndex = (table.currentPlayerIndex + 1) % table.players.length;
-        } while (table.players[table.currentPlayerIndex].status !== 'active');
-        
+        } while (table.players[table.currentPlayerIndex].status !== 'active' || table.players[table.currentPlayerIndex].status === 'all-in');
+
         console.log(table.currentPlayerIndex);
 
         table.remainingTime = 30;
+        io.to(tableId).emit('gameState', getPublicGameState(tableId));
         table.players.forEach(player => {
             io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
         });
-        
+
         startTurnTimer(io, tableId);
     }
 };
@@ -200,18 +215,30 @@ const handlePlayerAction = (io, tableId, playerIndex, action, amount) => {
 
     switch (action) {
         case 'bet':
+            if (player.bet < highestBet) {
+                io.to(player.socketId).emit('error', 'Cannot bet, must call or raise if there is a higher bet.');
+                return;
+            }
             player.bet += amount;
             table.pot += amount;
             break;
         case 'call':
+            if (player.bet >= highestBet) {
+                io.to(player.socketId).emit('error', 'Cannot call, you already have the highest bet.');
+                return;
+            }
             const callAmount = highestBet - player.bet;
             player.bet += callAmount;
             table.pot += callAmount;
             break;
         case 'raise':
-            const raiseAmount = amount;
-            player.bet += raiseAmount;
-            table.pot += raiseAmount;
+            if (player.bet >= highestBet) {
+                io.to(player.socketId).emit('error', 'Cannot raise, you already have the highest bet.');
+                return;
+            }
+            const totalRaiseAmount = (highestBet - player.bet) + amount;
+            player.bet += totalRaiseAmount;
+            table.pot += totalRaiseAmount;
             break;
         case 'fold':
             player.status = 'folded';
@@ -278,7 +305,7 @@ const endRound = async (io, tableId) => {
         await user.save();
 
         player.bet = 0;
-        player.status = 'active';
+        player.status = player.status === 'left' ? 'left' : 'active';
         player.hasActed = false;
     }
 
@@ -290,11 +317,17 @@ const endRound = async (io, tableId) => {
         pot: splitPot
     });
 
-    // Start the next game round after a delay
     setTimeout(() => {
-        startGame(io, tableId);
+        handleAFKPlayers(io, tableId); // Handle players who left
+        const remainingPlayers = table.players.filter(player => player.status !== 'left');
+        if (remainingPlayers.length >= 2) {
+            startGame(io, tableId);
+        } else {
+            io.to(tableId).emit('message', 'Not enough players to start the game.');
+        }
     }, 7000);
 };
+
 
 const dealerAction = (io, tableId) => {
     console.log('dealer action');
@@ -327,7 +360,7 @@ const dealerAction = (io, tableId) => {
         ...player,
         hasActed: false
     }));
-    
+
     table.currentPlayerIndex = -1;
 
     // Show the new table state with the updated board cards to all players
@@ -394,7 +427,9 @@ const playerJoin = async (io, socket, userId, tableId) => {
         const existingPlayer = table.players.find(player => player.uid === userId);
         if (existingPlayer) {
             existingPlayer.socketId = socket.id;
-            existingPlayer.status = 'active';
+            if (existingPlayer.status !== 'folded') {
+                existingPlayer.status = 'active';
+            }
         } else {
             table.players.push({
                 uid: userId,
@@ -411,9 +446,7 @@ const playerJoin = async (io, socket, userId, tableId) => {
 
         socket.join(tableId);
 
-        table.players.forEach(player => {
-            io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
-        });
+        io.to(tableId).emit('gameState', getPublicGameState(tableId));
 
         const activePlayers = table.players.filter(player => player.status === 'active');
         if (activePlayers.length >= 2) {
@@ -424,14 +457,32 @@ const playerJoin = async (io, socket, userId, tableId) => {
     }
 };
 
-const playerLeave = async (io, socketId, tableId) => {
+
+const playerLeave = (io, socketId, tableId) => {
     const table = gameState[tableId];
-    const player = table.players.find(player => player.socketId === socketId);
-    if (player) {
-        player.status = 'left';
-        io.to(tableId).emit('gameState', getPublicGameState(tableId, player.uid));
+    const playerIndex = table.players.findIndex(player => player.socketId === socketId);
+
+    if (playerIndex !== -1) {
+        const player = table.players[playerIndex];
+
+        // If no hand is currently going on (pre-flop stage with no active players)
+        const noActiveHand = table.stage === 'pre-flop' && table.players.every(player => player.bet === 0 && player.hand.length === 0);
+
+        if (noActiveHand) {
+            table.players.splice(playerIndex, 1); // Remove player from the table
+            io.to(tableId).emit('gameState', getPublicGameState(tableId, player.uid));
+        } else {
+            player.status = 'left';
+            io.to(tableId).emit('gameState', getPublicGameState(tableId, player.uid));
+        }
+        io.to(tableId).emit('gameState', getPublicGameState(tableId));
+        table.players.forEach(player => {
+            io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
+        });
+
     }
 };
+
 
 const handleAFKPlayers = async (io, tableId) => {
     const table = gameState[tableId];
@@ -484,9 +535,17 @@ const spectatorJoin = async (io, socket, tableId) => {
             table = gameState[tableId];
         }
 
-        table.spectators.push({
-            socketId: socket.id,
-        });
+        const existingPlayer = table.players.find(player => player.uid === socket.userId); // Use socket.userId instead of socket.request.user.id
+        if (existingPlayer) {
+            existingPlayer.socketId = socket.id;
+            if (existingPlayer.status !== 'folded') {
+                existingPlayer.status = 'active';
+            }
+        } else {
+            table.spectators.push({
+                socketId: socket.id,
+            });
+        }
 
         socket.join(tableId);
         socket.emit('gameState', getPublicGameState(tableId));
@@ -547,10 +606,31 @@ const cleanupInactiveTables = async () => {
 };
 
 const setupPokerController = (io) => {
+    io.use(async (socket, next) => {
+        try {
+            const token = socket.handshake.auth.token;
+            if (!token) {
+                return next(new Error('Authentication error: No token provided'));
+            }
+
+            const decodedToken = await admin.auth().verifyIdToken(token);
+            const user = await User.findOne({ uid: decodedToken.uid });
+            if (!user) {
+                return next(new Error('Authentication error: User not found'));
+            }
+
+            socket.userId = decodedToken.uid; // Attach userId to the socket object
+            socket.user = user; // Attach user object to the socket object
+            next();
+        } catch (err) {
+            next(new Error('Authentication error: Invalid token'));
+        }
+    });
+
     io.on('connection', (socket) => {
-        socket.on('playerJoin', async ({ userId, tableId }) => {
+        socket.on('playerJoin', async ({ tableId }) => {
             try {
-                await playerJoin(io, socket, userId, tableId);
+                await playerJoin(io, socket, socket.userId, tableId);
             } catch (error) {
                 console.error('Error handling playerJoin:', error.message);
             }
@@ -590,7 +670,11 @@ const setupPokerController = (io) => {
 
         socket.on('playerAction', (data) => {
             try {
-                const { tableId, playerIndex, action, amount } = data;
+                const { tableId, action, amount } = data;
+                const playerIndex = gameState[tableId]?.players.findIndex(p => p.uid === socket.userId);
+                if (playerIndex === -1 || playerIndex === undefined) {
+                    return console.error('Player not found');
+                }
                 handlePlayerAction(io, tableId, playerIndex, action, amount);
             } catch (error) {
                 console.error('Error handling playerAction:', error.message);
@@ -608,7 +692,7 @@ const setupPokerController = (io) => {
         socket.on('disconnect', () => {
             try {
                 for (const tableId in gameState) {
-                    spectatorLeave(io, socket.id, tableId);
+                    playerLeave(io, socket.id, tableId); // Handle disconnection
                 }
             } catch (error) {
                 console.error('Error handling disconnect:', error.message);
