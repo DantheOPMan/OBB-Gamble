@@ -30,13 +30,18 @@ const BPoker = () => {
 
   useEffect(() => {
     fetchTables();
+
+    // Optional cleanup function
+    return () => {
+      setTables([]);
+    };
   }, []);
 
   const fetchTables = async () => {
     try {
       const tablesList = await listPokerTables();
       setTables(tablesList);
-      console.log(tablesList)
+      console.log(tablesList);
     } catch (error) {
       console.error('Failed to fetch tables:', error);
     }
@@ -67,7 +72,7 @@ const BPoker = () => {
           {tables.map((table) => {
             return (
               <StyledPaper key={table.id}>
-                <Typography variant="h6">{table.name}</Typography>
+                <Typography variant="h6">{table.name || 'Unknown Table'}</Typography>
                 <Typography variant="body1">Players: {table.players.length}/{table.maxPlayers}</Typography>
                 <StyledButton variant="contained" color="primary" onClick={() => handleViewTable(table.id)}>
                   View Table

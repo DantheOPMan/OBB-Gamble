@@ -198,8 +198,9 @@ const PokerTablePage = () => {
           }, 7000);
         });
 
-        newSocket.on('roundEnd', ({ winners, pot }) => {
-          setRoundEndInfo({ winners, pot });
+        newSocket.on('roundEnd', (data) => {
+          console.log('Round End:', data);
+          setRoundEndInfo(data.payouts);
           setTimeout(() => {
             setRoundEndInfo(null);
           }, 7000);
@@ -454,9 +455,17 @@ const PokerTablePage = () => {
       <Modal open={roundEndInfo !== null} onClose={handleCloseRoundEnd} closeAfterTransition>
         <Fade in={roundEndInfo !== null}>
           <StyledModalBox>
-            <Alert onClose={handleCloseRoundEnd} severity="info" sx={{ bgcolor: 'grey.900' }}>
-              {roundEndInfo && `Winners: ${roundEndInfo.winners.join(', ')} | Pot: ${roundEndInfo.pot}`}
-            </Alert>
+            <Typography variant="h6" component="h2" gutterBottom>
+              Round Ended
+            </Typography>
+            {roundEndInfo && roundEndInfo.map((winner, index) => (
+              <Typography key={index} variant="body1">
+                {winner.obkUsername}: Won {winner.winnings} BP
+              </Typography>
+            ))}
+            <Button onClick={handleCloseRoundEnd} variant="contained" color="primary" style={{ marginTop: '16px' }}>
+              Close
+            </Button>
           </StyledModalBox>
         </Fade>
       </Modal>
