@@ -208,8 +208,11 @@ const moveToNextPlayer = (io, tableId) => {
     const highestBet = Math.max(...table.players.map(p => p.bet));
     clearTurnTimer(tableId);
 
-    const allActedOnce = table.players.every((player) => player.status !== 'active' || player.hasActed);
-    if (allActedOnce && table.players.every(p => p.bet === highestBet || p.status === 'all-in')) {
+    const activePlayers = table.players.filter(player => player.status === 'active');
+
+    const allActedOnce = activePlayers.every(player => player.hasActed);
+    const allBetsEqual = activePlayers.every(player => player.bet === highestBet || player.status === 'all-in');
+    if (allActedOnce && allBetsEqual) {
         // All players have acted and all bets are equal, proceed to the next stage
         dealerAction(io, tableId);
     } else {
@@ -520,6 +523,7 @@ const playerJoin = async (io, socket, userId, tableId) => {
                 status: isHandInProgress ? 'folded' : 'active',
                 bet: 0,
                 obkUsername: user.obkUsername,
+                hasActed: false,
                 bpBalance: user.bpBalance // Include bpBalance
             });
         }
