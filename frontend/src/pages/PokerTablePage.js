@@ -146,9 +146,9 @@ const PokerTablePage = () => {
       if (tableId && auth.currentUser) {
         const token = await auth.currentUser.getIdToken();
 
-        const newSocket = io('http://localhost:3001', {
+        const newSocket = io(process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001', {
           path: '/socket.io',
-          auth: { token } // Add the token here
+          auth: { token }
         });
 
         newSocket.on('connect', () => {
