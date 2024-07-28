@@ -93,25 +93,27 @@ const CardBox = styled(Box)(({ theme }) => ({
 }));
 
 const PlayingCard = styled('div')(({ theme }) => ({
-  width: '30px',
-  height: '45px',
+  width: '45px',
+  height: '60px',
   backgroundColor: 'white',
   color: 'black',
-  border: '1px solid black',
-  borderRadius: '4px',
+  border: '2px solid black',
+  borderRadius: '8px',
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'center',
   alignItems: 'center',
-  margin: theme.spacing(0.5),
+  margin: theme.spacing(0),
+  fontSize: '2rem',
 }));
 
 const suitSymbols = {
-  Hearts: <span style={{ color: 'red' }}>♥</span>,
-  Diamonds: <span style={{ color: 'red' }}>♦</span>,
-  Clubs: '♣',
-  Spades: '♠'
+  Hearts: <span style={{ color: 'red', fontSize: '1.5rem', lineHeight: 1 }}>♥</span>,
+  Diamonds: <span style={{ color: 'red', fontSize: '1.5rem', lineHeight: 1 }}>♦</span>,
+  Clubs: <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>♣</span>,
+  Spades: <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>♠</span>
 };
+
 
 const Alert = React.forwardRef(function Alert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
@@ -284,6 +286,16 @@ const PokerTablePage = () => {
   const betOrRaiseLabel = (currentPlayer && currentPlayer.bet === highestBet) ? 'Bet Amount' : 'Raise Amount';
   const isBetOrRaiseEnabled = isPlayerTurn() && !hasLeftGame() && raiseAmount > 0;
 
+  const renderWinningHand = (hand) => (
+    <CardBox>
+      {hand.map((card, idx) => (
+        <PlayingCard key={idx}>
+          <Typography variant="caption">{card.value}</Typography>
+          <Typography variant="caption">{suitSymbols[card.suit]}</Typography>
+        </PlayingCard>
+      ))}
+    </CardBox>
+  );
   const renderPlayer = (player, index) => {
     const isActive = gameState?.currentPlayerIndex === index;
     const isSmallBlind = gameState?.smallBlindIndex === index;
@@ -296,8 +308,8 @@ const PokerTablePage = () => {
             <>
               <Typography variant="subtitle1" noWrap>{player.obkUsername || '?'}</Typography>
               <Typography variant="body2">Status: {player.status || '?'}</Typography>
-              <Typography variant="body2">Bet: {player.bet || '?'}</Typography>
-              <Typography variant="body2">Balance: {player.bpBalance || '?'}</Typography> {/* Display bpBalance */}
+              <Typography variant="body2">Bet: {player.bet || '0'}</Typography>
+              <Typography variant="body2">Balance: {player.bpBalance || '0'}</Typography> {/* Display bpBalance */}
               {isSmallBlind && <Typography variant="body2" color="secondary">(Small Blind)</Typography>}
               {isBigBlind && <Typography variant="body2" color="primary">(Big Blind)</Typography>}
               {auth.currentUser.uid === player.uid && player.hand && (
@@ -341,7 +353,7 @@ const PokerTablePage = () => {
         <div style={{ width: '100%', textAlign: 'center' }}>
           <Typography variant="h5">Table: {gameState.name || '?'}</Typography>
           <CenterContainer>
-            <Typography variant="body1">Pot: {gameState.pot || '?'}</Typography>
+            <Typography variant="body1">Pot: {gameState.pot || '0'}</Typography>
             <BoardCardsContainer>
               {gameState.boardCards && gameState.boardCards.map((card, index) => (
                 <PlayingCard key={index}>
@@ -459,9 +471,12 @@ const PokerTablePage = () => {
               Round Ended
             </Typography>
             {roundEndInfo && roundEndInfo.map((winner, index) => (
-              <Typography key={index} variant="body1">
-                {winner.obkUsername}: Won {winner.winnings} BP
-              </Typography>
+              <Box key={index} sx={{ mb: 2 }}>
+                <Typography variant="body1">
+                  {winner.obkUsername}: Won {winner.winnings} BP with {winner.handDescription}
+                </Typography>
+                {renderWinningHand(winner.hand)}
+              </Box>
             ))}
             <Button onClick={handleCloseRoundEnd} variant="contained" color="primary" style={{ marginTop: '16px' }}>
               Close

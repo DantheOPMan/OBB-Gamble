@@ -108,7 +108,7 @@ const startGame = async (io, tableId) => {
         let table = gameState[tableId];
 
         // Remove all players who have left before starting a new hand
-        table.players = table.players.filter(player => player.status !== 'left');
+        handleAFKPlayers(io, tableId);
 
         const activePlayers = table.players.filter(player => player.status === 'active');
         if (activePlayers.length < 2) {
@@ -126,7 +126,8 @@ const startGame = async (io, tableId) => {
             hand: playerHands[index],
             status: 'active',
             bet: 0,
-            hasActed: false // Initialize hasActed
+            hasActed: false,
+            bpBalance: Number(player.bpBalance) || 0 // Ensure bpBalance is a number
         }));
 
         table.players[table.smallBlindIndex].bet = table.smallBlind;
@@ -217,6 +218,7 @@ const moveToNextPlayer = (io, tableId) => {
         dealerAction(io, tableId);
     } else {
         do {
+            console.log(table.players.length);
             table.currentPlayerIndex = (table.currentPlayerIndex + 1) % table.players.length;
         } while (table.players[table.currentPlayerIndex].status !== 'active' || table.players[table.currentPlayerIndex].status === 'all-in');
 
@@ -330,52 +332,69 @@ const endRound = async (io, tableId) => {
     if (activePlayers.length === 1) {
         // The last remaining player wins the entire pot
         const winner = activePlayers[0];
-        payouts[winner.uid] = table.pot;
+        payouts[winner.uid] = {
+            winnings: table.pot,
+            hand: winner.hand,
+            handDescription: 'Last player remaining'
+        };
     } else {
         // Sort players by their bet amount (ascending)
         activePlayers.sort((a, b) => a.bet - b.bet);
         
         let pots = [];
-        let totalBet = 0;
+        let totalPot = table.pot;
+        let previousBet = 0;
         
         // Calculate side pots
         for (let i = 0; i < activePlayers.length; i++) {
             const player = activePlayers[i];
-            const betDifference = player.bet - totalBet;
+            const currentBet = player.bet;
+            const betDifference = currentBet - previousBet;
+            
             if (betDifference > 0) {
+                const potSize = betDifference * (activePlayers.length - i);
                 pots.push({
-                    amount: betDifference * (activePlayers.length - i),
+                    amount: potSize,
                     eligiblePlayers: activePlayers.slice(i)
                 });
-                totalBet = player.bet;
+                totalPot -= potSize;
             }
+            
+            previousBet = currentBet;
+        }
+        
+        // Add the main pot (if any remaining)
+        if (totalPot > 0) {
+            pots.push({
+                amount: totalPot,
+                eligiblePlayers: activePlayers
+            });
         }
         
         // Distribute each pot
         for (const pot of pots) {
             const winners = determineWinningHand(pot.eligiblePlayers, table.boardCards);
-            const winShare = pot.amount / winners.length;
-            console.log(pot.amount)
-            console.log(winShare)
-            winners.forEach(winner => {
-                payouts[winner.uid] = (payouts[winner.uid] || 0) + winShare;
-                console.log(winner.obkUsername)
+            const winShare = Math.floor(pot.amount / winners.length); // Floor to avoid fractional chips
+            const remainder = pot.amount % winners.length; // Distribute any remainder to the first winner
+            
+            winners.forEach((winner, index) => {
+                const share = index === 0 ? winShare + remainder : winShare;
+                if (!payouts[winner.uid]) {
+                    payouts[winner.uid] = {
+                        winnings: 0,
+                        hand: winner.hand,
+                        handDescription: winner.handResult.handName
+                    };
+                }
+                payouts[winner.uid].winnings += share;
             });
         }
-        
-        // Return uncalled bets
-        activePlayers.forEach(player => {
-            const uncalledBet = player.bet - totalBet;
-            if (uncalledBet > 0) {
-                payouts[player.uid] = (payouts[player.uid] || 0) + uncalledBet;
-            }
-        });
     }
     
     // Update player balances and reset for next round
     for (const player of table.players) {
         if (payouts[player.uid]) {
-            player.bpBalance += payouts[player.uid];
+            player.bpBalance = Number(player.bpBalance) + Number(payouts[player.uid].winnings);
         }
         player.bet = 0;
         player.status = player.status === 'left' ? 'left' : 'active';
@@ -390,15 +409,16 @@ const endRound = async (io, tableId) => {
     // Emit updated game state and payout information
     io.to(tableId).emit('gameState', getPublicGameState(tableId, null));
     io.to(tableId).emit('roundEnd', {
-        payouts: Object.entries(payouts).map(([uid, winnings]) => ({
+        payouts: Object.entries(payouts).map(([uid, data]) => ({
             obkUsername: table.players.find(p => p.uid === uid).obkUsername,
-            winnings
+            winnings: data.winnings,
+            hand: data.hand,
+            handDescription: data.handDescription
         }))
     });
     
-    // Prepare for next round
+    handleAFKPlayers(io, tableId);
     setTimeout(() => {
-        handleAFKPlayers(io, tableId);
         const remainingPlayers = table.players.filter(player => player.status !== 'left');
         if (remainingPlayers.length >= 2) {
             startGame(io, tableId);
@@ -544,6 +564,16 @@ const playerJoin = async (io, socket, userId, tableId) => {
     }
 };
 
+const adjustBlinds = (table) => {
+    const activePlayers = table.players.filter(player => player.status !== 'left');
+    if (activePlayers.length >= 2) {
+        table.smallBlindIndex = table.smallBlindIndex % activePlayers.length;
+        table.bigBlindIndex = (table.smallBlindIndex + 1) % activePlayers.length;
+    } else {
+        table.smallBlindIndex = -1;
+        table.bigBlindIndex = -1;
+    }
+};
 
 const playerLeave = (io, socketId, tableId) => {
     const table = gameState[tableId];
@@ -559,6 +589,8 @@ const playerLeave = (io, socketId, tableId) => {
             table.players.splice(playerIndex, 1);
             if (table.players.length < 2) {
                 resetTableState(table);
+            } else {
+                adjustBlinds(table);
             }
         } else {
             player.status = 'left';
@@ -568,7 +600,6 @@ const playerLeave = (io, socketId, tableId) => {
         table.players.forEach(player => {
             io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
         });
-
     }
 };
 
@@ -580,10 +611,17 @@ const handleAFKPlayers = async (io, tableId) => {
         table.players = table.players.filter(p => p.socketId !== player.socketId);
     });
 
+    if (table.players.length >= 2) {
+        adjustBlinds(table);
+    } else {
+        resetTableState(table);
+    }
+
     await PokerTable.findByIdAndUpdate(tableId, { players: table.players });
 
     io.to(tableId).emit('gameState', getPublicGameState(tableId));
 };
+
 
 const spectatorJoin = async (io, socket, tableId) => {
     try {
