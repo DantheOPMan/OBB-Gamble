@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const User = require('../models/userModel');
 const PokerTable = require('../models/pokerTableModel');
+const PokerHandTransaction = require('../models/pokerHandTransactionModel');
 const pokerEvaluator = require('poker-evaluator');
 const admin = require('firebase-admin');
 
@@ -103,7 +104,7 @@ const startGame = async (io, tableId) => {
         let table = gameState[tableId];
 
         // Remove all players who have left before starting a new hand
-        handleAFKPlayers(io, tableId);
+        await handleAFKPlayers(io, tableId);
 
         const activePlayers = table.players.filter(player => player.status === 'active');
         if (activePlayers.length < 2) {
@@ -125,9 +126,75 @@ const startGame = async (io, tableId) => {
             bpBalance: Number(player.bpBalance) || 0 // Ensure bpBalance is a number
         }));
 
-        table.players[table.smallBlindIndex].bet = table.smallBlind;
-        table.players[table.bigBlindIndex].bet = table.bigBlind;
-        table.pot = table.smallBlind + table.bigBlind;
+        // Create a list to track transactions for blinds
+        const handTransactions = [];
+
+        // Handle small blind
+        let smallBlindPlayer = table.players[table.smallBlindIndex];
+        if (smallBlindPlayer.bpBalance < table.smallBlind) {
+            smallBlindPlayer.bet = smallBlindPlayer.bpBalance;
+            smallBlindPlayer.status = 'all-in';
+            table.pot += smallBlindPlayer.bpBalance;
+            handTransactions.push({
+                uid: smallBlindPlayer.uid,
+                betAmount: smallBlindPlayer.bpBalance,
+                winnings: 0,
+                adminFee: 0
+            });
+            smallBlindPlayer.bpBalance = 0;
+        } else {
+            smallBlindPlayer.bet = table.smallBlind;
+            table.pot += table.smallBlind;
+            handTransactions.push({
+                uid: smallBlindPlayer.uid,
+                betAmount: table.smallBlind,
+                winnings: 0,
+                adminFee: 0
+            });
+            smallBlindPlayer.bpBalance -= table.smallBlind;
+        }
+
+        // Update small blind player's balance in the database
+        await User.findOneAndUpdate({ uid: smallBlindPlayer.uid }, { bpBalance: smallBlindPlayer.bpBalance });
+
+        // Handle big blind
+        let bigBlindPlayer = table.players[table.bigBlindIndex];
+        if (bigBlindPlayer.bpBalance < table.bigBlind) {
+            bigBlindPlayer.bet = bigBlindPlayer.bpBalance;
+            bigBlindPlayer.status = 'all-in';
+            table.pot += bigBlindPlayer.bpBalance;
+            handTransactions.push({
+                uid: bigBlindPlayer.uid,
+                betAmount: bigBlindPlayer.bpBalance,
+                winnings: 0,
+                adminFee: 0
+            });
+            bigBlindPlayer.bpBalance = 0;
+        } else {
+            bigBlindPlayer.bet = table.bigBlind;
+            table.pot += table.bigBlind;
+            handTransactions.push({
+                uid: bigBlindPlayer.uid,
+                betAmount: table.bigBlind,
+                winnings: 0,
+                adminFee: 0
+            });
+            bigBlindPlayer.bpBalance -= table.bigBlind;
+        }
+
+        // Update big blind player's balance in the database
+        await User.findOneAndUpdate({ uid: bigBlindPlayer.uid }, { bpBalance: bigBlindPlayer.bpBalance });
+
+        // Save the blind transactions to the PokerHandTransaction model
+        const pokerHandTransaction = new PokerHandTransaction({
+            tableId,
+            handNumber: table.handNumber || 0,
+            players: handTransactions,
+            totalPot: table.pot,
+            adminFeeTotal: 0 // Admin fee will be calculated at the end of the round
+        });
+
+        await pokerHandTransaction.save();
 
         table.deck = newDeck;
         table.currentPlayerIndex = (table.bigBlindIndex + 1) % table.players.length;
@@ -158,11 +225,24 @@ const clearTurnTimer = (tableId) => {
 };
 
 const startTurnTimer = (io, tableId) => {
-    clearTurnTimer(tableId); // Clear any existing timer before starting a new one
+    clearTurnTimer(tableId);
 
-    const intervalId = setInterval(() => {
+    const intervalId = setInterval(async () => {
         const table = gameState[tableId];
         if (!table) return;
+
+        for (const player of table.players) {
+            const user = await User.findOne({ uid: player.uid });
+            if (user && player.bpBalance !== user.bpBalance) {
+                player.bpBalance = user.bpBalance;
+            }
+
+            if (player.bpBalance <= 0 && player.status !== 'left' && player.status !== 'all-in') {
+                player.status = 'left';
+                player.hand = [];
+                io.to(player.socketId).emit('message', 'You have been removed due to insufficient bpBalance.');
+            }
+        }
 
         const currentPlayer = table.players[table.currentPlayerIndex];
 
@@ -226,10 +306,13 @@ const moveToNextPlayer = (io, tableId) => {
 };
 
 
-const handlePlayerAction = (io, tableId, playerIndex, action, amount) => {
+const handlePlayerAction = async (io, tableId, playerIndex, action, amount) => {
     const table = gameState[tableId];
     const player = table.players[playerIndex];
     const highestBet = Math.max(...table.players.map(p => p.bet));
+
+    let betAmount = 0;
+    let handTransaction = null;
 
     switch (action) {
         case 'bet':
@@ -237,8 +320,10 @@ const handlePlayerAction = (io, tableId, playerIndex, action, amount) => {
                 io.to(player.socketId).emit('error', 'Cannot bet, must call or raise if there is a higher bet.');
                 return;
             }
-            player.bet += amount;
-            table.pot += amount;
+            betAmount = amount;
+            if (betAmount === player.bpBalance) {
+                player.status = 'all-in';
+            }
             break;
         case 'call':
             if (player.bet >= highestBet) {
@@ -246,8 +331,10 @@ const handlePlayerAction = (io, tableId, playerIndex, action, amount) => {
                 return;
             }
             const callAmount = highestBet - player.bet;
-            player.bet += callAmount;
-            table.pot += callAmount;
+            betAmount = Math.min(callAmount, player.bpBalance); // Set to the lesser of the call amount or player's balance
+            if (betAmount === player.bpBalance) {
+                player.status = 'all-in'; // Set to all-in if calling the entire balance
+            }
             break;
         case 'raise':
             if (player.bet >= highestBet) {
@@ -255,8 +342,10 @@ const handlePlayerAction = (io, tableId, playerIndex, action, amount) => {
                 return;
             }
             const totalRaiseAmount = (highestBet - player.bet) + amount;
-            player.bet += totalRaiseAmount;
-            table.pot += totalRaiseAmount;
+            betAmount = Math.min(totalRaiseAmount, player.bpBalance); // Set to the lesser of the raise amount or player's balance
+            if (betAmount === player.bpBalance) {
+                player.status = 'all-in'; // Set to all-in if raising the entire balance
+            }
             break;
         case 'fold':
             player.status = 'folded';
@@ -268,31 +357,74 @@ const handlePlayerAction = (io, tableId, playerIndex, action, amount) => {
             }
             break;
         case 'all-in':
-            table.pot += player.bet;
-            player.bet = 0;
+            betAmount = player.bpBalance; // All-in bet amount is the player's entire balance
             player.status = 'all-in';
             break;
         default:
             console.error('Unknown action:', action);
+            return;
+    }
+
+    if (betAmount > 0) {
+        if (betAmount > player.bpBalance) {
+            io.to(player.socketId).emit('error', 'Insufficient bpBalance for this action.');
+            return;
+        }
+
+        player.bet += betAmount;
+        table.pot += betAmount;
+        player.bpBalance -= betAmount;
+
+        // Update the player's bpBalance in the database
+        await User.findOneAndUpdate({ uid: player.uid }, { bpBalance: player.bpBalance });
+
+        // Create a hand transaction record
+        handTransaction = {
+            uid: player.uid,
+            betAmount,
+            winnings: 0, // To be updated at the end of the round
+            adminFee: 0 // To be updated at the end of the round
+        };
     }
 
     player.hasActed = true;
-
     table.lastActivity = new Date();
 
-    const activePlayers = table.players.filter(p => p.status === 'active');
+    const activePlayers = table.players.filter(p => p.status === 'active' || p.status === 'all-in');
     if (activePlayers.length <= 1) {
-        endRound(io, tableId);
+        if (handTransaction) {
+            // Save the hand transaction to the database before ending the round
+            const pokerHandTransaction = new PokerHandTransaction({
+                tableId,
+                handNumber: table.handNumber || 0,
+                players: [handTransaction],
+                totalPot: table.pot,
+                adminFeeTotal: 0 // Admin fee will be calculated at the end of the round
+            });
+            await pokerHandTransaction.save();
+        }
+        await endRound(io, tableId);
         return;
     }
 
     io.to(`${tableId}-spectators`).emit('gameState', getPublicGameState(tableId));
-
     table.players.forEach(player => {
         io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
     });
 
     moveToNextPlayer(io, tableId);
+
+    if (handTransaction) {
+        // Save the hand transaction to the database after moving to the next player
+        const pokerHandTransaction = new PokerHandTransaction({
+            tableId,
+            handNumber: table.handNumber || 0,
+            players: [handTransaction],
+            totalPot: table.pot,
+            adminFeeTotal: 0 // Admin fee will be calculated at the end of the round
+        });
+        await pokerHandTransaction.save();
+    }
 };
 
 const resetTableState = (table) => {
@@ -314,25 +446,25 @@ const endRound = async (io, tableId) => {
     let activePlayers = table.players.filter(player => player.status === 'active' || player.status === 'all-in');
     
     let payouts = {};
+    let totalPot = table.pot;
+    const adminFeeTotal = Math.ceil(totalPot * 0.005); // Admin fee is 0.5% of the pot, rounded up
 
-    // Check if there's only one player left
+    // Subtract the admin fee from the total pot before any calculations
+    totalPot -= adminFeeTotal;
+
     if (activePlayers.length === 1) {
-        // The last remaining player wins the entire pot
         const winner = activePlayers[0];
         payouts[winner.uid] = {
-            winnings: table.pot,
+            winnings: totalPot,
             hand: winner.hand,
             handDescription: 'Last player remaining'
         };
     } else {
-        // Sort players by their bet amount (ascending)
         activePlayers.sort((a, b) => a.bet - b.bet);
         
         let pots = [];
-        let totalPot = table.pot;
         let previousBet = 0;
         
-        // Calculate side pots
         for (let i = 0; i < activePlayers.length; i++) {
             const player = activePlayers[i];
             const currentBet = player.bet;
@@ -350,7 +482,6 @@ const endRound = async (io, tableId) => {
             previousBet = currentBet;
         }
         
-        // Add the main pot (if any remaining)
         if (totalPot > 0) {
             pots.push({
                 amount: totalPot,
@@ -358,11 +489,10 @@ const endRound = async (io, tableId) => {
             });
         }
         
-        // Distribute each pot
         for (const pot of pots) {
             const winners = determineWinningHand(pot.eligiblePlayers, table.boardCards);
-            const winShare = Math.floor(pot.amount / winners.length); // Floor to avoid fractional chips
-            const remainder = pot.amount % winners.length; // Distribute any remainder to the first winner
+            const winShare = Math.floor(pot.amount / winners.length);
+            const remainder = pot.amount % winners.length;
             
             winners.forEach((winner, index) => {
                 const share = index === 0 ? winShare + remainder : winShare;
@@ -378,22 +508,52 @@ const endRound = async (io, tableId) => {
         }
     }
     
-    // Update player balances and reset for next round
+    const handTransactions = [];
+
     for (const player of table.players) {
         if (payouts[player.uid]) {
-            player.bpBalance = Number(player.bpBalance) + Number(payouts[player.uid].winnings);
+            player.bpBalance += payouts[player.uid].winnings;
+            await User.findOneAndUpdate({ uid: player.uid }, { bpBalance: player.bpBalance });
         }
-        player.bet = 0;
-        player.status = player.status === 'left' ? 'left' : 'active';
-        player.hasActed = false;
-        player.hand = [];
+
+        const betAmount = player.bet;
+        const winnings = payouts[player.uid] ? payouts[player.uid].winnings : 0;
+        const adminFee = Math.ceil(betAmount * 0.005); // Example admin fee calculation (0.5%)
+
+        handTransactions.push({
+            uid: player.uid,
+            betAmount,
+            winnings,
+            adminFee
+        });
+
+        if (player.bpBalance <= 0 && player.status !== 'all-in') {
+            player.status = 'left';
+        } else {
+            player.bet = 0;
+            player.status = player.status === 'left' ? 'left' : 'active';
+            player.hasActed = false;
+            player.hand = [];
+        }
     }
-    
+
+    const pokerHandTransaction = new PokerHandTransaction({
+        tableId,
+        handNumber: table.handNumber || 0,
+        players: handTransactions,
+        totalPot: table.pot,
+        adminFeeTotal
+    });
+
+    await pokerHandTransaction.save();
+
     table.pot = 0;
     table.boardCards = [];
     table.stage = 'pre-flop';
-    
-    // Emit updated game state and payout information
+    table.handNumber = (table.handNumber || 0) + 1;
+
+    table.players = table.players.filter(player => player.bpBalance > 0 || player.status === 'all-in');
+
     io.to(tableId).emit('gameState', getPublicGameState(tableId, null));
     io.to(tableId).emit('roundEnd', {
         payouts: Object.entries(payouts).map(([uid, data]) => ({
@@ -419,11 +579,27 @@ const endRound = async (io, tableId) => {
     }, 7000);
 };
 
-const dealerAction = (io, tableId) => {
-
+const dealerAction = async (io, tableId) => {
     const table = gameState[tableId];
-    const previousPlayerIndex = table.currentPlayerIndex;
 
+    // Adjust bets only if one player has bet more than everyone else
+    const bets = table.players.filter(player => player.status === 'active' || player.status === 'all-in').map(player => player.bet);
+    const highestBet = Math.max(...bets);
+    const secondHighestBet = Math.max(...bets.filter(bet => bet < highestBet));
+
+    const highestBetPlayers = table.players.filter(player => player.bet === highestBet);
+    if (highestBetPlayers.length === 1 && highestBetPlayers[0].bet > secondHighestBet) {
+        const player = highestBetPlayers[0];
+        const excessAmount = player.bet - secondHighestBet;
+        player.bet = secondHighestBet;
+        player.bpBalance += excessAmount;
+        table.pot -= excessAmount;
+
+        // Update the player's bpBalance in the database
+        await User.findOneAndUpdate({ uid: player.uid }, { bpBalance: player.bpBalance });
+    }
+
+    // Proceed with the dealer action (e.g., moving to the next stage)
     switch (table.stage) {
         case 'pre-flop':
             table.boardCards.push(...table.deck.splice(0, 3));
@@ -438,7 +614,7 @@ const dealerAction = (io, tableId) => {
             table.stage = 'river';
             break;
         case 'river':
-            endRound(io, tableId);
+            await endRound(io, tableId);
             return;
         default:
             return;
@@ -458,11 +634,9 @@ const dealerAction = (io, tableId) => {
     });
 
     setTimeout(() => {
-        // Restore the previous player index
-        table.currentPlayerIndex = previousPlayerIndex;
+        table.currentPlayerIndex = table.bigBlindIndex;
         moveToNextPlayer(io, tableId);
     }, 5000);
-
 };
 
 const playerJoin = async (io, socket, userId, tableId) => {
@@ -475,14 +649,20 @@ const playerJoin = async (io, socket, userId, tableId) => {
 
         const user = await User.findOne({ uid: userId });
         if (!user) {
-            socket.emit('error', 'User not found.');
+            socket.emit('error', { message: 'User not found.', details: '' });
+            return;
+        }
+
+        // Ensure user has enough bpBalance to join
+        if (user.bpBalance <= 0) {
+            socket.emit('error', { message: 'Insufficient bpBalance to join the table.', details: '' });
             return;
         }
 
         if (!table) {
             const dbTable = await PokerTable.findById(tableId).populate('players');
             if (!dbTable) {
-                socket.emit('error', 'Table not found.');
+                socket.emit('error', { message: 'Table not found.', details: '' });
                 return;
             }
 
@@ -497,7 +677,7 @@ const playerJoin = async (io, socket, userId, tableId) => {
                     bet: player.bet,
                     handVisible: player.handVisible,
                     obkUsername: player.obkUsername,
-                    bpBalance: player.bpBalance // Include bpBalance
+                    bpBalance: player.bpBalance
                 })),
                 spectators: dbTable.spectators,
                 pot: dbTable.pot,
@@ -530,7 +710,7 @@ const playerJoin = async (io, socket, userId, tableId) => {
                 bet: 0,
                 obkUsername: user.obkUsername,
                 hasActed: false,
-                bpBalance: user.bpBalance // Include bpBalance
+                bpBalance: user.bpBalance
             });
         }
 
@@ -547,6 +727,7 @@ const playerJoin = async (io, socket, userId, tableId) => {
         }
     } catch (error) {
         console.error('Error joining player:', error.message);
+        socket.emit('error', { message: 'Failed to join table.', details: error.message });
     }
 };
 
