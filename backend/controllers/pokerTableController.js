@@ -595,7 +595,20 @@ const dealerAction = async (io, tableId) => {
         table.pot -= excessAmount;
 
         // Update the player's bpBalance in the database
-        await User.findOneAndUpdate({ uid: player.uid }, { bpBalance: player.bpBalance });
+        try {
+            const updatedUser = await User.findOneAndUpdate(
+                { uid: player.uid },
+                { $inc: { bpBalance: excessAmount } },
+                { new: true }
+            );
+            if (updatedUser) {
+                player.bpBalance = updatedUser.bpBalance; // Sync with the database
+            } else {
+                console.error(`Failed to update bpBalance for user ${player.uid}`);
+            }
+        } catch (error) {
+            console.error(`Error updating bpBalance for user ${player.uid}:`, error);
+        }
     }
 
     // Proceed with the dealer action (e.g., moving to the next stage)
