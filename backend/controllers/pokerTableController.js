@@ -36,7 +36,6 @@ const dealCards = (deck, numberOfPlayers) => {
 };
 
 const determineWinningHand = (players, boardCards) => {
-    console.log('determine winning hand');
     let bestHand = null;
     let bestPlayers = [];
 
@@ -85,9 +84,6 @@ const determineWinningHand = (players, boardCards) => {
         }
     });
 
-    console.log('Best hand:', bestHand);
-    console.log('Best players:', bestPlayers.map(p => p.obkUsername));
-
     return bestPlayers;
 };
 
@@ -99,7 +95,6 @@ const rotateBlinds = (table) => {
 };
 
 const startGame = async (io, tableId) => {
-    console.log('start game');
     try {
         if (!mongoose.Types.ObjectId.isValid(tableId)) {
             throw new Error('Invalid table ID');
@@ -163,7 +158,6 @@ const clearTurnTimer = (tableId) => {
 };
 
 const startTurnTimer = (io, tableId) => {
-    console.log('start turn timer');
     clearTurnTimer(tableId); // Clear any existing timer before starting a new one
 
     const intervalId = setInterval(() => {
@@ -203,11 +197,8 @@ const startTurnTimer = (io, tableId) => {
 
 const moveToNextPlayer = (io, tableId) => {
     clearTurnTimer(tableId);
-    console.log('move to next player');
     const table = gameState[tableId];
-    console.log(table.currentPlayerIndex);
     const highestBet = Math.max(...table.players.map(p => p.bet));
-    clearTurnTimer(tableId);
 
     const activePlayers = table.players.filter(player => player.status === 'active');
 
@@ -218,11 +209,9 @@ const moveToNextPlayer = (io, tableId) => {
         dealerAction(io, tableId);
     } else {
         do {
-            console.log(table.players.length);
             table.currentPlayerIndex = (table.currentPlayerIndex + 1) % table.players.length;
         } while (table.players[table.currentPlayerIndex].status !== 'active' || table.players[table.currentPlayerIndex].status === 'all-in');
 
-        console.log(table.currentPlayerIndex);
 
         table.remainingTime = 30;
 
@@ -238,7 +227,6 @@ const moveToNextPlayer = (io, tableId) => {
 
 
 const handlePlayerAction = (io, tableId, playerIndex, action, amount) => {
-    console.log('handle player action');
     const table = gameState[tableId];
     const player = table.players[playerIndex];
     const highestBet = Math.max(...table.players.map(p => p.bet));
@@ -322,7 +310,6 @@ const resetTableState = (table) => {
 };
 
 const endRound = async (io, tableId) => {
-    console.log('end round');
     const table = gameState[tableId];
     let activePlayers = table.players.filter(player => player.status === 'active' || player.status === 'all-in');
     
@@ -433,7 +420,6 @@ const endRound = async (io, tableId) => {
 };
 
 const dealerAction = (io, tableId) => {
-    console.log('dealer action');
 
     const table = gameState[tableId];
     const previousPlayerIndex = table.currentPlayerIndex;
