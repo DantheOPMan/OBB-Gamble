@@ -296,7 +296,7 @@ const moveToNextPlayer = (io, tableId) => {
         table.remainingTime = 30;
 
         io.to(tableId).emit('gameState', getPublicGameState(tableId));
-        
+
         table.players.forEach(player => {
             io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
         });
@@ -476,26 +476,31 @@ const endRound = async (io, tableId) => {
                     amount: potSize,
                     eligiblePlayers: activePlayers.slice(i)
                 });
-                totalPot -= potSize;
             }
             
             previousBet = currentBet;
         }
         
-        if (totalPot > 0) {
-            pots.push({
-                amount: totalPot,
-                eligiblePlayers: activePlayers
-            });
-        }
+        // Adjust pot sizes to account for admin fee
+        const totalPotSize = pots.reduce((sum, pot) => sum + pot.amount, 0);
+        let remainingAdminFee = adminFeeTotal;
+        
+        pots = pots.map((pot, index) => {
+            const potRatio = pot.amount / totalPotSize;
+            let potAdminFee = index === pots.length - 1 ? remainingAdminFee : Math.floor(adminFeeTotal * potRatio);
+            remainingAdminFee -= potAdminFee;
+            return {
+                ...pot,
+                amount: pot.amount - potAdminFee
+            };
+        });
         
         for (const pot of pots) {
             const winners = determineWinningHand(pot.eligiblePlayers, table.boardCards);
             const winShare = Math.floor(pot.amount / winners.length);
-            const remainder = pot.amount % winners.length;
+            let remainder = pot.amount % winners.length;
             
-            winners.forEach((winner, index) => {
-                const share = index === 0 ? winShare + remainder : winShare;
+            winners.forEach((winner) => {
                 if (!payouts[winner.uid]) {
                     payouts[winner.uid] = {
                         winnings: 0,
@@ -503,7 +508,9 @@ const endRound = async (io, tableId) => {
                         handDescription: winner.handResult.handName
                     };
                 }
+                const share = winShare + (remainder > 0 ? 1 : 0);
                 payouts[winner.uid].winnings += share;
+                remainder--;
             });
         }
     }
@@ -511,15 +518,18 @@ const endRound = async (io, tableId) => {
     const handTransactions = [];
 
     const adminUsers = await User.find({ role: 'admin' });
-    const adminFeePerAdmin = adminUsers.length > 0 ? adminFeeTotal / adminUsers.length : 0;
+    let remainingAdminFee = adminFeeTotal;
     
-    for (const adminUser of adminUsers) {
+    for (let i = 0; i < adminUsers.length; i++) {
+        const adminUser = adminUsers[i];
+        const adminFeeShare = i === adminUsers.length - 1 ? remainingAdminFee : adminFeeTotal / adminUsers.length;
+        remainingAdminFee -= adminFeeShare;
+        
         await User.findOneAndUpdate(
             { uid: adminUser.uid },
-            { $inc: { bpBalance: adminFeePerAdmin } }
+            { $inc: { bpBalance: adminFeeShare } }
         );
     }
-
 
     for (const player of table.players) {
         if (payouts[player.uid]) {
@@ -534,7 +544,7 @@ const endRound = async (io, tableId) => {
             uid: player.uid,
             betAmount,
             winnings,
-            adminFee: adminFeeTotal / table.players.length // Distribute the admin fee equally among players
+            adminFee: Math.ceil((betAmount / table.pot) * adminFeeTotal) // Proportional admin fee for record-keeping, rounded up
         });
     
         if (player.bpBalance <= 0 && player.status !== 'all-in') {
@@ -916,7 +926,7 @@ const cleanupInactiveTables = async () => {
         for (const table of inactiveTables) {
             const tableId = table._id;
             const tableState = gameState[tableId];
-            
+
             if (tableState && tableState.lastActivity >= passedTime) {
                 continue;
             }
