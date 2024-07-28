@@ -510,6 +510,17 @@ const endRound = async (io, tableId) => {
     
     const handTransactions = [];
 
+    const adminUsers = await User.find({ role: 'admin' });
+    const adminFeePerAdmin = adminUsers.length > 0 ? adminFeeTotal / adminUsers.length : 0;
+    
+    for (const adminUser of adminUsers) {
+        await User.findOneAndUpdate(
+            { uid: adminUser.uid },
+            { $inc: { bpBalance: adminFeePerAdmin } }
+        );
+    }
+
+
     for (const player of table.players) {
         if (payouts[player.uid]) {
             player.bpBalance += payouts[player.uid].winnings;
