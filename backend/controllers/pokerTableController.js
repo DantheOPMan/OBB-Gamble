@@ -515,18 +515,17 @@ const endRound = async (io, tableId) => {
             player.bpBalance += payouts[player.uid].winnings;
             await User.findOneAndUpdate({ uid: player.uid }, { bpBalance: player.bpBalance });
         }
-
+    
         const betAmount = player.bet;
         const winnings = payouts[player.uid] ? payouts[player.uid].winnings : 0;
-        const adminFee = Math.ceil(betAmount * 0.005); // Example admin fee calculation (0.5%)
-
+    
         handTransactions.push({
             uid: player.uid,
             betAmount,
             winnings,
-            adminFee
+            adminFee: adminFeeTotal / table.players.length // Distribute the admin fee equally among players
         });
-
+    
         if (player.bpBalance <= 0 && player.status !== 'all-in') {
             player.status = 'left';
         } else {
