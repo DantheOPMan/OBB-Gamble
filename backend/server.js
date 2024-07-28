@@ -1,8 +1,10 @@
 // backend/server.js
-const app = require('./app');
-const express = require('express');
+const express = require('express'); // Ensure to require express here
+const { app, server } = require('./app');
 const path = require('path');
 require('dotenv').config();
+
+const PORT = process.env.PORT || 3001;
 
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '..', 'frontend', 'build')));
@@ -11,7 +13,6 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-const port = process.env.PORT || 3001;
-app.listen(port, () => {
-  console.log(`Server is running on port: ${port}`);
+server.listen(PORT, () => {
+  console.log(`Server is running on port: ${PORT}`);
 });
