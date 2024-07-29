@@ -3,7 +3,7 @@ const User = require('../models/userModel');
 const Transaction = require('../models/transactionModel'); 
 
 const numBuckets = 15;
-const stdDev = 1.94;
+const stdDev = 1.987;
 const multipliers = [100, 20, 8, 4, 2, 0.2, 0.2, 0.2, 0.2, 0.2, 2, 4, 8, 20, 100];
 
 // Helper function to generate a random number from a custom distribution
