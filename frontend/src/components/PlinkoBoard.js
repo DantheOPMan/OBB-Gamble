@@ -97,6 +97,7 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
     const engineRef = useRef(Engine.create());
     const runnerRef = useRef(Runner.create());
     const ballsRef = useRef([]);
+    const ballInteractionsRef = useRef({});
 
     const multipliers = [100, 20, 8, 4, 2, 0.2, 0.2, 0.2, 0.2, 0.2, 2, 4, 8, 20, 100];
 
@@ -135,9 +136,9 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
         }
 
         const ball = Bodies.circle(x, 0, 10, {
-            restitution: 0.7,
-            friction: 0.0,
-            density: 0.1,
+            restitution: 0.8,
+            friction: 0.3,
+            density: 0.5,
             label: 'particle',
             collisionFilter: {
                 group: -1
@@ -150,6 +151,7 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
             result: result,
             multiplier: multiplier
         });
+        ballInteractionsRef.current[ball.id] = new Set();
     };
 
     useEffect(() => {
@@ -181,7 +183,7 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
                 World.add(engine.world, Bodies.circle(x, y, pegRadius, {
                     isStatic: true,
                     restitution: 0.5,
-                    friction: 0.0,
+                    friction: 0.3,
                     label: 'plinko'
                 }));
             }
@@ -257,7 +259,7 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
     useEffect(() => {
         const handleCollisions = (event) => {
             const pairs = event.pairs;
-            const maxVelocity = 1.8;
+            const maxVelocity = 1.75;
 
             for (let i = 0; i < pairs.length; i++) {
                 const { bodyA, bodyB } = pairs[i];
@@ -265,13 +267,22 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
                 const peg = bodyA.label === 'plinko' ? bodyA : (bodyB.label === 'plinko' ? bodyB : null);
 
                 if (ballBody && peg) {
+                    if (ballInteractionsRef.current[ballBody.id] && ballInteractionsRef.current[ballBody.id].has(peg.id)) {
+                        continue; // Skip this interaction if it's already happened
+                    }
+
+                    if (!ballInteractionsRef.current[ballBody.id]) {
+                        ballInteractionsRef.current[ballBody.id] = new Set();
+                    }
+                    ballInteractionsRef.current[ballBody.id].add(peg.id);
+
                     const ballData = ballsRef.current.find(b => b.body === ballBody);
                     if (ballData) {
                         const { targetBucket } = ballData;
                         let correctTarget = targetBucket;
-                        if (correctTarget === 5 ){
+                        if (correctTarget === 5) {
                             correctTarget = 6;
-                        }else if (correctTarget === 9){
+                        } else if (correctTarget === 9) {
                             correctTarget = 8;
                         }
                         const targetX = (correctTarget * (refContainer.current.clientWidth / multipliers.length)) + ((refContainer.current.clientWidth / multipliers.length) / 2);
@@ -279,14 +290,34 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
                         const distance = targetX - ballX;
 
                         const movingTowardsTarget = (distance > 0 && ballBody.velocity.x > 0) || (distance < 0 && ballBody.velocity.x < 0);
-                        const velocityModifier = movingTowardsTarget ? 1.2 : 0.0;
 
-                        let newVelocityX = ballBody.velocity.x * velocityModifier;
+                        const bucketWidth = refContainer.current.clientWidth / multipliers.length;
+                        const isAboveTargetBucket = Math.abs(distance) < bucketWidth / 2.5;
+
+                        let newVelocityX = ballBody.velocity.x;
                         let ymultiplier = 0.75;
-                        if(velocityModifier === 0){
-                            ymultiplier = 1;
+
+                        if (!isAboveTargetBucket) {
+                            const maxDistance = refContainer.current.clientWidth / 2;
+
+                            const distanceFactor = Math.min(Math.abs(distance) / maxDistance, 1);
+
+                            const baseModifier = 1.17;
+                            const maxAdditionalModifier = 0.25;
+                            const progressiveModifier = baseModifier + (maxAdditionalModifier * Math.pow(distanceFactor, 2));
+
+                            const directionModifier = movingTowardsTarget ? 1 : -1.2;
+
+                            const velocityModifier = progressiveModifier * directionModifier;
+
+                            newVelocityX *= velocityModifier;
+                        } else {
+                            ymultiplier = 0.5;
+                            newVelocityX *= 0.2;
                         }
+
                         let newVelocityY = ballBody.velocity.y * ymultiplier - 0.4;
+
 
                         if (Math.abs(newVelocityX) > maxVelocity) {
                             newVelocityX = Math.sign(newVelocityX) * maxVelocity;
@@ -325,6 +356,7 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
         return () => {
             Events.off(engineRef.current, 'collisionEnd', handleCollisions);
             Events.off(engineRef.current, 'collisionActive', preventBallCollision);
+            ballInteractionsRef.current = {};
         };
     }, [multipliers.length]);
 
