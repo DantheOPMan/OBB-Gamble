@@ -48,25 +48,38 @@ const getBurnTransactions = async (req, res) => {
 
 const getBlackjackStats = async (req, res) => {
   try {
+    // Get all completed hands
     const hands = await BlackjackHand.find({ status: 'completed' });
 
-    const totalWagered = hands.reduce((sum, hand) => {
-      return sum + hand.playerHands.reduce((handSum, playerHand) => handSum + playerHand.bpCharged, 0);
-    }, 0).toFixed(1);
+    // Calculate total wagered and returned for player hands
+    const playerStats = hands.reduce((stats, hand) => {
+      hand.playerHands.forEach(playerHand => {
+        stats.totalWagered += playerHand.bpCharged;
+        stats.totalReturned += playerHand.payout || 0;
+      });
+      return stats;
+    }, { totalWagered: 0, totalReturned: 0 });
 
-    const totalReturned = hands.reduce((sum, hand) => {
-      return sum + hand.playerHands.reduce((handSum, playerHand) => handSum + (playerHand.payout || 0), 0);
-    }, 0).toFixed(1);
+    // Get admin claim hands
+    const adminClaimHands = await BlackjackHand.find({ status: 'adminClaim' });
 
-    const netAmount = (totalWagered - totalReturned).toFixed(1);
+    // Calculate total admin claimed
+    const totalAdminClaimed = adminClaimHands.reduce((sum, hand) => {
+      return sum + hand.playerHands.reduce((handSum, playerHand) => handSum + playerHand.payout, 0);
+    }, 0);
+
+    // Calculate net amount (profit before admin claim)
+    const netAmount = playerStats.totalWagered - playerStats.totalReturned;
 
     res.status(200).json({
       handCount: hands.length,
-      totalWagered: parseFloat(totalWagered),
-      totalReturned: parseFloat(totalReturned),
-      netAmount: parseFloat(netAmount),
+      totalWagered: parseFloat(playerStats.totalWagered.toFixed(1)),
+      totalReturned: parseFloat(playerStats.totalReturned.toFixed(1)),
+      netAmount: parseFloat(netAmount.toFixed(1)),
+      totalAdminClaimed: parseFloat(totalAdminClaimed.toFixed(1)),
     });
   } catch (error) {
+    console.error('Error fetching blackjack stats:', error);
     res.status(500).json({ message: error.message });
   }
 };

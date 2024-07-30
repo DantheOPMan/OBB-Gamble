@@ -192,6 +192,10 @@ const getBlackjackStats = async () => {
   return makeRequest('/api/stats/blackjack-stats', 'GET');
 };
 
+const claimBlackjackProfits = async () => {
+  return makeRequest('/api/blackjack/claim-profits', 'POST');
+};
+
 const listPokerTables = async () => {
   return makeRequest('/api/pokertables/list', 'GET');
 };
@@ -244,6 +248,7 @@ export {
   splitBlackjack,
   getCurrentBlackjack,
   getBlackjackStats,
+  claimBlackjackProfits,
   listPokerTables,
   joinPokerTable,
   createPokerTable,

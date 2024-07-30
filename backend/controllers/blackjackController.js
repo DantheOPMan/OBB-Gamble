@@ -1,5 +1,7 @@
 const BlackjackHand = require('../models/blackjackHandModel');
 const User = require('../models/userModel');
+const Transaction = require('../models/transactionModel');
+const mongoose = require('mongoose');
 
 const suits = ['Hearts', 'Diamonds', 'Clubs', 'Spades'];
 const values = ['Ace', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'Jack', 'Queen', 'King'];
@@ -150,8 +152,8 @@ const createHand = async (req, res) => {
             user.bpBalance += initialBPCharge;
             newHand.status.playerHands[0].payout += initialBPCharge;
             await user.save();
-        }else if (status === 'dealer_blackjack'){
-            newHand.dealerVisibleCards= [dealerHand[0], dealerHand[1]];
+        } else if (status === 'dealer_blackjack') {
+            newHand.dealerVisibleCards = [dealerHand[0], dealerHand[1]];
         }
 
         await newHand.save();
@@ -241,7 +243,7 @@ const stand = async (req, res) => {
             await finishDealerTurn(hand);
             const user = await User.findById(req.user._id);
             hand.playerHands.forEach(playerHand => {
-                
+
                 const outcome = determineHandOutcome(playerHand, hand.dealerValue);
                 playerHand.status = outcome;
 
@@ -350,9 +352,9 @@ const split = async (req, res) => {
         // Check if the hand can be split
         const tenValues = ['10', 'Jack', 'Queen', 'King'];
         if (
-            playerHand.cards.length !== 2 || 
-            !(playerHand.cards[0].value === playerHand.cards[1].value || 
-              (tenValues.includes(playerHand.cards[0].value) && tenValues.includes(playerHand.cards[1].value)))
+            playerHand.cards.length !== 2 ||
+            !(playerHand.cards[0].value === playerHand.cards[1].value ||
+                (tenValues.includes(playerHand.cards[0].value) && tenValues.includes(playerHand.cards[1].value)))
         ) {
             return res.status(400).json({ message: 'Cannot split this hand' });
         }
@@ -412,4 +414,90 @@ const getCurrentHand = async (req, res) => {
     }
 };
 
-module.exports = { createHand, hit, stand, doubleDown, split, getCurrentHand };
+const claimBlackjackProfits = async (req, res) => {
+    try {
+        // Get all completed Blackjack hands
+        const hands = await BlackjackHand.find({ status: 'completed' });
+
+        // Calculate total wagered and total returned
+        const totalWagered = hands.reduce((sum, hand) =>
+            sum + hand.playerHands.reduce((handSum, playerHand) => handSum + playerHand.bpCharged, 0), 0);
+        const totalReturned = hands.reduce((sum, hand) =>
+            sum + hand.playerHands.reduce((handSum, playerHand) => handSum + playerHand.payout, 0), 0);
+        const netProfits = totalWagered - totalReturned;
+
+        if (netProfits <= 0) {
+            return res.status(400).json({ message: 'No profits to claim' });
+        }
+
+        // Calculate burn amount and net profits after burn
+        const burnAmount = netProfits * 0.2;
+        const netProfitsAfterBurn = netProfits - burnAmount;
+
+        // Get all admin users
+        const adminUsers = await User.find({ role: 'admin' });
+        if (adminUsers.length === 0) {
+            return res.status(400).json({ message: 'No admin users found to distribute profits' });
+        }
+        const adminProfitPerUser = netProfitsAfterBurn / adminUsers.length;
+
+        // Create transactions for burn and distribute profits to admins
+        for (const admin of adminUsers) {
+            // Admin profit transaction
+            const adminTransaction = new Transaction({
+                userId: admin.uid,
+                amount: adminProfitPerUser,
+                marketId: null,
+                competitorName: 'AdminProfitBlackjack',
+                status: 'approved',
+                discordUsername: admin.discordUsername,
+                obkUsername: admin.obkUsername
+            });
+            admin.bpBalance += adminProfitPerUser;
+            await adminTransaction.save();
+            await admin.save();
+        }
+
+        // Burn transaction
+        const burnTransaction = new Transaction({
+            userId: 'burn',
+            amount: burnAmount,
+            marketId: null,
+            competitorName: 'Burn',
+            status: 'approved',
+            discordUsername: 'Burn',
+            obkUsername: 'Burn'
+        });
+        await burnTransaction.save();
+
+        // Create Blackjack hand to record the claim
+        const claimHand = new BlackjackHand({
+            userId: new mongoose.Types.ObjectId(),
+            deck: [],
+            playerHands: [{
+                cards: [],
+                value: 0,
+                status: 'adminClaim',
+                bpCharged: 0,  // Set to 0 as this is not a real charge
+                payout: netProfits  // Record the claimed amount as a payout
+            }],
+            dealerHand: [],
+            dealerValue: 0,
+            status: 'adminClaim',
+            dealerVisibleCards: []
+        });
+        await claimHand.save();
+
+        res.status(200).json({
+            message: 'Profits claimed successfully',
+            netProfits,
+            burnAmount,
+            netProfitsAfterBurn
+        });
+    } catch (error) {
+        console.error('Error claiming blackjack profits:', error.message);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { createHand, hit, stand, doubleDown, split, getCurrentHand, claimBlackjackProfits };
