@@ -418,13 +418,15 @@ const claimBlackjackProfits = async (req, res) => {
     try {
         // Get all completed Blackjack hands
         const hands = await BlackjackHand.find({ status: 'completed' });
+        const adminClaimHands = await BlackjackHand.find({ status: 'adminClaim' });
 
         // Calculate total wagered and total returned
         const totalWagered = hands.reduce((sum, hand) =>
             sum + hand.playerHands.reduce((handSum, playerHand) => handSum + playerHand.bpCharged, 0), 0);
-        const totalReturned = hands.reduce((sum, hand) =>
-            sum + hand.playerHands.reduce((handSum, playerHand) => handSum + playerHand.payout, 0), 0);
+        const totalReturned = hands.reduce((sum, hand) => sum + hand.playerHands.reduce((handSum, playerHand) => handSum + playerHand.payout, 0), 0) +
+            adminClaimHands.reduce((sum, hand) => sum + hand.playerHands.reduce((handSum, playerHand) => handSum + playerHand.payout, 0), 0);
         const netProfits = totalWagered - totalReturned;
+        console.log(netProfits)
 
         if (netProfits <= 0) {
             return res.status(400).json({ message: 'No profits to claim' });
