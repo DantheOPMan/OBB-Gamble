@@ -1135,7 +1135,7 @@ const getPublicGameState = (tableId, userId) => {
 };
 
 const cleanupInactiveTables = async (io) => {
-    const passedTime = new Date(Date.now() - 30 * 60 * 1000);
+    const passedTime = new Date(Date.now() - 720 * 60 * 1000);
 
     try {
         const inactiveTables = await PokerTable.find({ lastActivity: { $lt: passedTime } });
