@@ -409,7 +409,7 @@ const handlePlayerAction = async (io, tableId, playerIndex, action, amount) => {
         return;
     }
 
-    io.to(`${tableId}-spectators`).emit('gameState', getPublicGameState(tableId));
+    io.to(tableId).emit('gameState', getPublicGameState(tableId));
     table.players.forEach(player => {
         io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
     });
