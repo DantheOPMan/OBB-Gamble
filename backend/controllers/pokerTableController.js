@@ -120,12 +120,14 @@ const startGame = async (io, tableId) => {
 
         // Remove all players who have left before starting a new hand
         await handleAFKPlayers(io, tableId);
+        resetTableState(table);
 
-        const activePlayers = table.players.filter(player => player.status === 'active');
+        const activePlayers = table.players;
         if (activePlayers.length < 2) {
             //console.log('Not enough players to start the game.');
             clearTurnTimer(tableId);
-            await cleanupTable(tableId, io);
+            //resetTableState(tableId);
+            //await cleanupTable(tableId, io);
             return;
         }
 
@@ -494,7 +496,7 @@ const endRound = async (io, tableId) => {
 
     let payouts = {};
     let totalPot = table.pot;
-    const adminFeeTotal = Math.ceil(totalPot * 0); // Admin fee is 0.5% of the pot, rounded up
+    let adminFeeTotal = Math.ceil(totalPot * 0); // Admin fee is 0.5% of the pot, rounded up
 
     // Ensure that adminFeeTotal is a valid number
     if (isNaN(adminFeeTotal) || adminFeeTotal < 0) {
