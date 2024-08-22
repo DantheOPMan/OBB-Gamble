@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const User = require('../models/userModel');
 const PokerTable = require('../models/pokerTableModel');
 const PokerHandTransaction = require('../models/pokerHandTransactionModel');
+const Transaction = require('../models/transactionModel');
 const pokerEvaluator = require('poker-evaluator');
 const admin = require('firebase-admin');
 
@@ -108,8 +109,16 @@ const startGame = async (io, tableId) => {
 
         const activePlayers = table.players.filter(player => player.status === 'active');
         if (activePlayers.length < 2) {
-            console.log('Not enough players to start the game.');
+            //console.log('Not enough players to start the game.');
+            clearTurnTimer(tableId);
+            await cleanupTable(tableId, io);
             return;
+        }
+
+        table.handNumber = (table.handNumber || 0) + 1;
+        if (table.handNumber % 10 === 0) {
+            table.smallBlind *= 2;
+            table.bigBlind *= 2;
         }
 
         const newDeck = shuffleDeck(createDeck());
@@ -153,10 +162,6 @@ const startGame = async (io, tableId) => {
             });
             smallBlindPlayer.bpBalance -= table.smallBlind;
         }
-
-        // Update small blind player's balance in the database
-        await User.findOneAndUpdate({ uid: smallBlindPlayer.uid }, { bpBalance: smallBlindPlayer.bpBalance });
-
         // Handle big blind
         let bigBlindPlayer = table.players[table.bigBlindIndex];
         if (bigBlindPlayer.bpBalance < table.bigBlind) {
@@ -181,9 +186,6 @@ const startGame = async (io, tableId) => {
             });
             bigBlindPlayer.bpBalance -= table.bigBlind;
         }
-
-        // Update big blind player's balance in the database
-        await User.findOneAndUpdate({ uid: bigBlindPlayer.uid }, { bpBalance: bigBlindPlayer.bpBalance });
 
         // Save the blind transactions to the PokerHandTransaction model
         const pokerHandTransaction = new PokerHandTransaction({
@@ -227,16 +229,19 @@ const clearTurnTimer = (tableId) => {
 const startTurnTimer = (io, tableId) => {
     clearTurnTimer(tableId);
 
+    const table = gameState[tableId];
+    
+    const activePlayers = table.players.filter(player => player.status === 'active');
+    if (activePlayers.length < 2) {
+        //console.log('Not enough active players to continue the game.');
+        return;
+    }
+
     const intervalId = setInterval(async () => {
-        const table = gameState[tableId];
-        if (!table) return;
+            if (!table) return;
+
 
         for (const player of table.players) {
-            const user = await User.findOne({ uid: player.uid });
-            if (user && player.bpBalance !== user.bpBalance) {
-                player.bpBalance = user.bpBalance;
-            }
-
             if (player.bpBalance <= 0 && player.status !== 'left' && player.status !== 'all-in') {
                 player.status = 'left';
                 player.hand = [];
@@ -375,9 +380,6 @@ const handlePlayerAction = async (io, tableId, playerIndex, action, amount) => {
         table.pot += betAmount;
         player.bpBalance -= betAmount;
 
-        // Update the player's bpBalance in the database
-        await User.findOneAndUpdate({ uid: player.uid }, { bpBalance: player.bpBalance });
-
         // Create a hand transaction record
         handTransaction = {
             uid: player.uid,
@@ -447,7 +449,13 @@ const endRound = async (io, tableId) => {
     
     let payouts = {};
     let totalPot = table.pot;
-    const adminFeeTotal = Math.ceil(totalPot * 0.005); // Admin fee is 0.5% of the pot, rounded up
+    const adminFeeTotal = Math.ceil(totalPot * 0); // Admin fee is 0.5% of the pot, rounded up
+
+    // Ensure that adminFeeTotal is a valid number
+    if (isNaN(adminFeeTotal) || adminFeeTotal < 0) {
+        console.warn(`Invalid admin fee calculated: ${adminFeeTotal}. Setting adminFeeTotal to 0.`);
+        adminFeeTotal = 0;
+    }
 
     // Subtract the admin fee from the total pot before any calculations
     totalPot -= adminFeeTotal;
@@ -534,7 +542,6 @@ const endRound = async (io, tableId) => {
     for (const player of table.players) {
         if (payouts[player.uid]) {
             player.bpBalance += payouts[player.uid].winnings;
-            await User.findOneAndUpdate({ uid: player.uid }, { bpBalance: player.bpBalance });
         }
     
         const betAmount = player.bet;
@@ -574,6 +581,37 @@ const endRound = async (io, tableId) => {
 
     table.players = table.players.filter(player => player.bpBalance > 0 || player.status === 'all-in');
 
+    try {
+        const updateData = {
+            players: table.players.map(player => ({
+                uid: player.uid,
+                socketId: player.socketId,
+                status: player.status,
+                bet: player.bet,
+                handVisible: player.handVisible,
+                obkUsername: player.obkUsername,
+                hasActed: player.hasActed,
+                bpBalance: player.bpBalance,
+            })),
+            pot: table.pot,
+            currentPlayerIndex: table.currentPlayerIndex,
+            remainingTime: table.remainingTime,
+            boardCards: table.boardCards,
+            stage: table.stage,
+            bigBlind: table.bigBlind,
+            smallBlind: table.smallBlind,
+            smallBlindIndex: table.smallBlindIndex,
+            bigBlindIndex: table.bigBlindIndex,
+            handNumber: table.handNumber,
+            lastActivity: new Date()
+        };
+
+        await PokerTable.findByIdAndUpdate(tableId, updateData, { new: true });
+        //console.log(`PokerTable ${tableId} state saved to database after hand ${table.handNumber}`);
+    } catch (error) {
+        //console.error(`Error saving PokerTable ${tableId} state to database:`, error);
+    }
+
     io.to(tableId).emit('gameState', getPublicGameState(tableId, null));
     io.to(tableId).emit('roundEnd', {
         payouts: Object.entries(payouts).map(([uid, data]) => ({
@@ -591,6 +629,7 @@ const endRound = async (io, tableId) => {
             startGame(io, tableId);
         } else {
             io.to(tableId).emit('message', 'Not enough players to start the game.');
+            resetTableState(table);
         }
         io.to(tableId).emit('gameState', getPublicGameState(tableId));
         table.players.forEach(player => {
@@ -614,22 +653,6 @@ const dealerAction = async (io, tableId) => {
         player.bet = secondHighestBet;
         player.bpBalance += excessAmount;
         table.pot -= excessAmount;
-
-        // Update the player's bpBalance in the database
-        try {
-            const updatedUser = await User.findOneAndUpdate(
-                { uid: player.uid },
-                { $inc: { bpBalance: excessAmount } },
-                { new: true }
-            );
-            if (updatedUser) {
-                player.bpBalance = updatedUser.bpBalance; // Sync with the database
-            } else {
-                console.error(`Failed to update bpBalance for user ${player.uid}`);
-            }
-        } catch (error) {
-            console.error(`Error updating bpBalance for user ${player.uid}:`, error);
-        }
     }
 
     // Proceed with the dealer action (e.g., moving to the next stage)
@@ -672,10 +695,16 @@ const dealerAction = async (io, tableId) => {
     }, 5000);
 };
 
-const playerJoin = async (io, socket, userId, tableId) => {
+const playerJoin = async (io, socket, userId, tableId, buyInAmount) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(tableId)) {
             throw new Error('Invalid table ID');
+        }
+
+        if (isNaN(buyInAmount) || buyInAmount < 0) {
+            socket.emit('error', { message: 'Invalid buy-in amount.', details: 'Buy-in amount must be a positive number.' });
+            //console.log(buyInAmount);
+            return;
         }
 
         let table = gameState[tableId];
@@ -686,9 +715,25 @@ const playerJoin = async (io, socket, userId, tableId) => {
             return;
         }
 
-        // Ensure user has enough bpBalance to join
-        if (user.bpBalance <= 0) {
-            socket.emit('error', { message: 'Insufficient bpBalance to join the table.', details: '' });
+        if (user.bpBalance < buyInAmount) {
+            socket.emit('error', { message: 'Insufficient BP balance or invalid buy-in amount.', details: '' });
+            return;
+        }
+
+        try {
+            await createTransaction({
+                userId: userId,
+                amount: -buyInAmount,
+                discordUsername: 'Poker',
+                obkUsername: 'Poker',
+                status: 'approved',
+            });
+
+            user.bpBalance -= buyInAmount;
+            await user.save();
+        } catch (transactionError) {
+            //console.error('Failed to create transaction:', transactionError);
+            socket.emit('error', { message: 'Failed to process buy-in.', details: 'Please try again.' });
             return;
         }
 
@@ -710,7 +755,7 @@ const playerJoin = async (io, socket, userId, tableId) => {
                     bet: player.bet,
                     handVisible: player.handVisible,
                     obkUsername: player.obkUsername,
-                    bpBalance: player.bpBalance
+                    bpBalance: player.bpBalance,
                 })),
                 spectators: dbTable.spectators,
                 pot: dbTable.pot,
@@ -730,10 +775,13 @@ const playerJoin = async (io, socket, userId, tableId) => {
         const existingPlayer = table.players.find(player => player.uid === userId);
         if (existingPlayer) {
             existingPlayer.socketId = socket.id;
-            if (existingPlayer.status !== 'folded') {
-                existingPlayer.status = 'active';
-            }
+            existingPlayer.status = existingPlayer.status !== 'folded' ? 'active' : existingPlayer.status;
+            existingPlayer.bpBalance += buyInAmount; // Add the buy-in amount to the existing player's internal balance
         } else {
+            if (buyInAmount <= 0) {
+                socket.emit('error', { message: 'Invalid buy-in amount. Cannot join with 0 BP.', details: '' });
+                return;
+            }
             const isHandInProgress = table.players.some(player => player.hand.length > 0);
             table.players.push({
                 uid: userId,
@@ -743,7 +791,7 @@ const playerJoin = async (io, socket, userId, tableId) => {
                 bet: 0,
                 obkUsername: user.obkUsername,
                 hasActed: false,
-                bpBalance: user.bpBalance
+                bpBalance: buyInAmount, // Initialize with the buy-in amount
             });
         }
 
@@ -775,25 +823,53 @@ const adjustBlinds = (table) => {
     }
 };
 
-const playerLeave = (io, socketId, tableId) => {
+const playerLeave = async (io, socketId, tableId) => {
     const table = gameState[tableId];
+
+    if (!table) {
+        //console.log(`Attempt to leave non-existent table: ${tableId}`);
+        return; 
+    }
     const playerIndex = table.players.findIndex(player => player.socketId === socketId);
 
     if (playerIndex !== -1) {
         const player = table.players[playerIndex];
 
-        // If no hand is currently going on (pre-flop stage with no active players)
-        const noActiveHand = table.stage === 'pre-flop' && table.players.every(player => player.bet === 0 && player.hand.length === 0);
+        // Check if no hand is currently going on (pre-flop stage with no active players)
+        const noActiveHand = table.stage === 'pre-flop' && table.players.every(p => p.bet === 0 && p.hand.length === 0);
+
+        const amountToReturn = player.bpBalance;
 
         if (noActiveHand) {
-            table.players.splice(playerIndex, 1);
+            table.players.splice(playerIndex, 1); // Remove player from the table
+            try {
+                await createTransaction({
+                    userId: player.uid,
+                    amount: amountToReturn,
+                    discordUsername: 'Poker',
+                    obkUsername: 'Poker',
+                    status: 'approved',
+                });
+    
+                const user = await User.findOne({ uid: player.uid });
+                if (user) {
+                    user.bpBalance += amountToReturn;
+                    await user.save();
+                    //console.log(`Player ${player.uid} left the table. Returned ${amountToReturn} BP. New balance: ${user.bpBalance}`);
+                } else {
+                    //console.log(`User not found for player ${player.uid} when leaving table`);
+                }
+            }catch{
+                //console.error(`Error processing leave transaction for player ${player.uid}:`, error);
+            }
             if (table.players.length < 2) {
                 resetTableState(table);
             } else {
-                adjustBlinds(table);
+                adjustBlinds(table); 
             }
         } else {
             player.status = 'left';
+            //console.log(`Player ${player.uid} marked as left. Will return ${amountToReturn} BP at the end of the hand.`);
         }
 
         io.to(tableId).emit('gameState', getPublicGameState(tableId));
@@ -807,9 +883,37 @@ const handleAFKPlayers = async (io, tableId) => {
     const table = gameState[tableId];
     const afkPlayers = table.players.filter(player => player.status === 'left');
 
-    afkPlayers.forEach(player => {
+    for (const player of afkPlayers) {
+        const amountToReturn = player.bpBalance;
+        
+        try {
+            if (amountToReturn > 0) {
+                await createTransaction({
+                    userId: player.uid,
+                    amount: amountToReturn,
+                    discordUsername: 'Poker',
+                    obkUsername: 'Poker',
+                    status: 'approved',
+                });
+
+                const user = await User.findOneAndUpdate(
+                    { uid: player.uid },
+                    { $inc: { bpBalance: amountToReturn } },
+                    { new: true }
+                );
+
+                if (user) {
+                    //console.log(`Refunded ${amountToReturn} BP to player ${player.uid}. New balance: ${user.bpBalance}`);
+                } else {
+                    //console.log(`User not found for player ${player.uid} during handleAFKPlayers`);
+                }
+            }
+        } catch (error) {
+            console.error(`Error processing refund for player ${player.uid}:`, error);
+        }
+
         table.players = table.players.filter(p => p.socketId !== player.socketId);
-    });
+    }
 
     if (table.players.length >= 2) {
         adjustBlinds(table);
@@ -821,7 +925,6 @@ const handleAFKPlayers = async (io, tableId) => {
 
     io.to(tableId).emit('gameState', getPublicGameState(tableId));
 };
-
 
 const spectatorJoin = async (io, socket, tableId) => {
     try {
@@ -917,29 +1020,119 @@ const getPublicGameState = (tableId, userId) => {
     };
 };
 
-const cleanupInactiveTables = async () => {
+const cleanupInactiveTables = async (io) => {
     const passedTime = new Date(Date.now() - 30 * 60 * 1000);
 
     try {
         const inactiveTables = await PokerTable.find({ lastActivity: { $lt: passedTime } });
 
         for (const table of inactiveTables) {
-            const tableId = table._id;
+            const tableId = table._id.toString();
             const tableState = gameState[tableId];
 
             if (tableState && tableState.lastActivity >= passedTime) {
                 continue;
             }
 
-            delete gameState[tableId];
-            await PokerTable.findByIdAndDelete(tableId);
-            console.log(`Deleted inactive table: ${table.name} (${tableId})`);
+            //console.log(`Cleaning up inactive table: ${table.name} (${tableId})`);
+            await cleanupTable(tableId, io);
         }
     } catch (err) {
         console.error('Failed to clean up inactive tables:', err);
     }
 };
 
+const createTransaction = async (transactionData) => {
+    try {
+        // Validate required fields
+        if (!transactionData.userId || !transactionData.amount || !transactionData.discordUsername || !transactionData.obkUsername) {
+            console.error('Missing required fields for transaction:', transactionData);
+            throw new Error('Missing required fields for transaction');
+        }
+
+        // Ensure amount is a number
+        const amount = Number(transactionData.amount);
+        if (isNaN(amount)) {
+            console.error('Invalid amount for transaction:', transactionData.amount);
+            throw new Error('Invalid transaction amount');
+        }
+
+        // Create and save the transaction
+        const transaction = new Transaction({
+            userId: transactionData.userId,
+            amount: amount,
+            discordUsername: transactionData.discordUsername,
+            obkUsername: transactionData.obkUsername,
+            status: transactionData.status || 'approved', // Default to 'approved' if not provided
+        });
+
+        await transaction.save();
+        //console.log('Transaction created successfully:', transaction);
+        return transaction;
+    } catch (error) {
+        //console.error('Error creating transaction:', error);
+        throw error; // Re-throw the error for the caller to handle
+    }
+};
+
+const cleanupTable = async (tableId, io) => {
+    const table = gameState[tableId];
+    if (!table) {
+        //console.log(`Table ${tableId} not found in gameState during cleanup.`);
+        return;
+    }
+
+    //console.log(`Cleaning up table ${tableId}`);
+
+    for (const player of table.players) {
+        if (player.bpBalance > 0) {
+            try {
+                // Create a refund transaction
+                const refundTransaction = new Transaction({
+                    userId: player.uid,
+                    amount: player.bpBalance,
+                    discordUsername: 'Poker',
+                    obkUsername: 'Poker',
+                    status: 'approved',
+                });
+                await refundTransaction.save();
+
+                // Update user's balance in the database
+                const user = await User.findOne({ uid: player.uid });
+                if (user) {
+                    user.bpBalance += player.bpBalance;
+                    await user.save();
+                    //console.log(`Refunded ${player.bpBalance} BP to player ${player.uid}. New balance: ${user.bpBalance}`);
+                } else {
+                    //console.log(`User not found for player ${player.uid} during table cleanup`);
+                }
+            } catch (error) {
+                console.error(`Error processing refund for player ${player.uid}:`, error);
+            }
+        }
+
+        // Notify the player that they've been removed from the table
+        const socket = io.sockets.sockets.get(player.socketId);
+        if (socket) {
+            socket.emit('tableDeleted', { message: 'The table has been closed due to inactivity. Your balance has been refunded.' });
+            socket.leave(tableId);
+        }
+    }
+
+    // Notify all spectators that the table has been deleted
+    io.to(`${tableId}-spectators`).emit('tableDeleted', { message: 'The table has been closed due to inactivity.' });
+
+    // Clear the table from gameState
+    delete gameState[tableId];
+
+    // Delete the table from the database
+    try {
+        await PokerTable.findByIdAndDelete(tableId);
+        //console.log(`Table ${tableId} has been deleted from the database.`);
+    } catch (error) {
+        console.error(`Error deleting poker table ${tableId} from database:`, error);
+    }
+};
 
 const setupPokerController = (io) => {
     io.use(async (socket, next) => {
@@ -964,9 +1157,9 @@ const setupPokerController = (io) => {
     });
 
     io.on('connection', (socket) => {
-        socket.on('playerJoin', async ({ tableId }) => {
+        socket.on('playerJoin', async ({ tableId, buyInAmount }) => {
             try {
-                await playerJoin(io, socket, socket.userId, tableId);
+                await playerJoin(io, socket, socket.userId, tableId, buyInAmount);
             } catch (error) {
                 console.error('Error handling playerJoin:', error.message);
             }
@@ -1028,7 +1221,9 @@ const setupPokerController = (io) => {
         socket.on('disconnect', () => {
             try {
                 for (const tableId in gameState) {
-                    playerLeave(io, socket.id, tableId); // Handle disconnection
+                    if (gameState[tableId]) {
+                        playerLeave(io, socket.id, tableId);
+                    }
                 }
             } catch (error) {
                 console.error('Error handling disconnect:', error.message);
@@ -1036,7 +1231,7 @@ const setupPokerController = (io) => {
         });
     });
 
-    setInterval(cleanupInactiveTables, 60 * 1000);
+    setInterval(() => cleanupInactiveTables(io), 60 * 1000);
 };
 
 // RESTful API functions

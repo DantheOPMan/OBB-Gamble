@@ -12,8 +12,8 @@ const pokerTableSchema = new mongoose.Schema({
             handVisible: { type: Boolean, default: false },
             obkUsername: { type: String },
             hasActed: { type: Boolean, default: false },
-            bpBalance: { type: Number, default: 0 } 
-        }
+            bpBalance: { type: Number, default: 0 },
+            }
     ],
     spectators: [{ socketId: String }],
     pot: { type: Number, default: 0 },
@@ -25,6 +25,7 @@ const pokerTableSchema = new mongoose.Schema({
     smallBlind: { type: Number, default: 5 },
     smallBlindIndex: { type: Number, default: 0 },
     bigBlindIndex: { type: Number, default: 1 },
+    handNumber: { type: Number, default: 0 },
     lastActivity: { type: Date, default: Date.now }
 });
 

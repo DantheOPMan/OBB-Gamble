@@ -114,7 +114,6 @@ const suitSymbols = {
   Spades: <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>♠</span>
 };
 
-
 const Alert = React.forwardRef(function Alert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
@@ -140,6 +139,7 @@ const PokerTablePage = () => {
   const [errorDetails, setErrorDetails] = useState('');
   const [errorOpen, setErrorOpen] = useState(false);
   const [raiseAmount, setRaiseAmount] = useState(0);
+  const [buyInAmount, setBuyInAmount] = useState(0);
   const [roundEndInfo, setRoundEndInfo] = useState(null);
   const navigate = useNavigate();
 
@@ -223,7 +223,7 @@ const PokerTablePage = () => {
     try {
       const user = await getUser(auth.currentUser.uid);
       if (socket) {
-        socket.emit('playerJoin', { userId: user.uid, tableId });
+        socket.emit('playerJoin', { userId: user.uid, tableId, buyInAmount }); // Pass buyInAmount
       }
     } catch (error) {
       console.error('Failed to join table:', error);
@@ -234,7 +234,7 @@ const PokerTablePage = () => {
         setErrorOpen(false);
       }, 7000);
     }
-  };
+  };  
 
   const handleLeaveTable = () => {
     if (socket) {
@@ -371,6 +371,16 @@ const PokerTablePage = () => {
             ))}
           </OvalTable>
           <div>
+            <TextField
+              type="number"
+              label="Buy-In Amount"
+              value={buyInAmount}
+              onChange={(e) => setBuyInAmount(Number(e.target.value))}
+              variant="filled"
+              InputProps={{ style: { color: 'white' } }}
+              InputLabelProps={{ style: { color: 'grey' } }}
+              style={{ marginBottom: '8px' }}
+            />
             <StyledButton
               variant="contained"
               color="primary"
