@@ -15,7 +15,7 @@ const ApprovedTransactionsPage = () => {
       try {
         const response = await fetchApprovedTransactions();
         const filteredTransactions = response.filter(
-          (transaction) => !transaction.competitorName && !transaction.marketId && !transaction.targetUserId
+          (transaction) => !transaction.competitorName && !transaction.marketId && !transaction.targetUserId && transaction.obkUsername !== 'Poker' && transaction.discordUsername !== 'Poker'
         );
 
         // Group transactions by userId
@@ -67,7 +67,7 @@ const ApprovedTransactionsPage = () => {
 
   const filteredUsers = Object.keys(groupedTransactions).filter(userId => {
     const user = userDetails[userId];
-    if (!user || user.discordUsername === 'Poker' || obkUsername === 'Poker') return false;
+    if (!user) return false;
     const username = user.username ? user.username.toLowerCase() : '';
     const discordUsername = user.discordUsername ? user.discordUsername.toLowerCase() : '';
     const obkUsername = user.obkUsername ? user.obkUsername.toLowerCase() : '';
