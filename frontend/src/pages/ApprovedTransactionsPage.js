@@ -67,7 +67,7 @@ const ApprovedTransactionsPage = () => {
 
   const filteredUsers = Object.keys(groupedTransactions).filter(userId => {
     const user = userDetails[userId];
-    if (!user) return false;
+    if (!user || user.discordUsername === 'Poker' || obkUsername === 'Poker') return false;
     const username = user.username ? user.username.toLowerCase() : '';
     const discordUsername = user.discordUsername ? user.discordUsername.toLowerCase() : '';
     const obkUsername = user.obkUsername ? user.obkUsername.toLowerCase() : '';
