@@ -29,8 +29,8 @@ const DepositWithdrawForm = ({ onClose, onShowToast }) => {
   const handleTransaction = async () => {
     const numAmount = Number(amount);
 
-    if (numAmount < 100 || numAmount > 1000) {
-      setMessage('Amount must be between 100 and 1000 BP');
+    if (numAmount < 100 || numAmount > 10000) {
+      setMessage('Amount must be between 100 and 10000 BP');
       return;
     }
 
