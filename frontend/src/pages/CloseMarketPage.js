@@ -40,7 +40,7 @@ const CloseMarketPage = () => {
         window.location.reload();
       }, 1000); // Adjust the delay as needed
     } catch (error) {
-      setMessage('Failed to close market');
+      setMessage('Failed to close market ' + error.message);
       setOpenToast(true);
     }
   };
@@ -54,7 +54,7 @@ const CloseMarketPage = () => {
         window.location.reload();
       }, 1000); // Adjust the delay as needed
     } catch (error) {
-      setMessage('Failed to pause market');
+      setMessage('Failed to pause market ' + error.message);
       setOpenToast(true);
     }
   };
