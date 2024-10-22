@@ -1,6 +1,7 @@
 const Market = require('../models/marketModel');
 const User = require('../models/userModel');
 const Transaction = require('../models/transactionModel');
+const mongoose = require('mongoose');
 
 const createMarket = async (req, res) => {
   const { marketName, competitors } = req.body;
@@ -64,30 +65,44 @@ const closeMarket = async (req, res) => {
   const { marketId } = req.params;
   const { winner } = req.body;
 
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const market = await Market.findById(marketId);
+    // Fetch the market within the session
+    const market = await Market.findById(marketId).session(session);
     if (!market) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: 'Market not found' });
     }
 
     const winningCompetitor = market.competitors.find(c => c.name === winner);
     if (!winningCompetitor && winner) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: 'Winning competitor not found' });
     }
 
-    const transactions = await Transaction.find({ marketId, status: 'approved' });
+    // Fetch transactions within the session
+    const transactions = await Transaction.find({ marketId, status: 'approved' }).session(session);
 
     const totalPool = transactions.reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
     const totalWinningBets = winner
-      ? transactions.filter(transaction => transaction.competitorName === winner).reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0)
+      ? transactions
+          .filter(transaction => transaction.competitorName === winner)
+          .reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0)
       : 0;
     const adminFee = Math.ceil(totalPool * 0.05);
     const burnAmount = Math.ceil(adminFee * 0.2);
     const netAdminFee = adminFee - burnAmount;
     const netPool = totalPool - adminFee;
-    const adminUsers = await User.find({ role: 'admin' });
+
+    // Fetch admin users within the session
+    const adminUsers = await User.find({ role: 'admin' }).session(session);
     const adminFeePerUser = netAdminFee / adminUsers.length;
 
+    // Create and save admin transactions
     for (const admin of adminUsers) {
       const adminTransaction = new Transaction({
         userId: admin.uid,
@@ -98,11 +113,15 @@ const closeMarket = async (req, res) => {
         discordUsername: admin.discordUsername,
         obkUsername: admin.obkUsername
       });
+
       admin.bpBalance += adminFeePerUser;
-      await adminTransaction.save();
-      await admin.save();
+
+      // Save transaction and user within the session
+      await adminTransaction.save({ session });
+      await admin.save({ session });
     }
 
+    // Create and save burn transaction
     const burnTransaction = new Transaction({
       userId: 'burn',
       amount: burnAmount,
@@ -112,21 +131,22 @@ const closeMarket = async (req, res) => {
       discordUsername: 'Burn',
       obkUsername: 'Burn'
     });
-    await burnTransaction.save();
+    await burnTransaction.save({ session });
 
     if (totalWinningBets === 0) {
       const netPoolPerAdmin = Math.floor(netPool / adminUsers.length);
       for (const admin of adminUsers) {
         admin.bpBalance += netPoolPerAdmin;
-        await admin.save();
+        await admin.save({ session });
       }
     } else {
       for (const transaction of transactions) {
         if (transaction.competitorName === winner) {
-          const user = await User.findOne({ uid: transaction.userId });
+          const user = await User.findOne({ uid: transaction.userId }).session(session);
           if (user) {
             const userPayout = Math.round((Math.abs(transaction.amount) / totalWinningBets) * netPool);
             user.bpBalance += userPayout;
+
             const payoutTransaction = new Transaction({
               userId: user.uid,
               amount: userPayout,
@@ -136,19 +156,28 @@ const closeMarket = async (req, res) => {
               discordUsername: user.discordUsername,
               obkUsername: user.obkUsername
             });
-            await payoutTransaction.save();
-            await user.save();
+
+            await payoutTransaction.save({ session });
+            await user.save({ session });
           }
         }
       }
     }
 
+    // Update market status and winner
     market.status = 'closed';
     market.winner = winner;
-    await market.save();
+    await market.save({ session });
+
+    // Commit the transaction
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(200).json(market);
   } catch (error) {
+    // Abort the transaction on error
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ message: error.message });
   }
 };
