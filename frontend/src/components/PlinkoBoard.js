@@ -411,7 +411,7 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
                         },
                     }}
                 >
-                    {[...Array(25).keys()].map(i => (
+                    {[...Array(10).keys()].map(i => (
                         <MenuItem key={i + 1} value={i + 1}>{i + 1}</MenuItem>
                     ))}
                 </CustomSelect>
