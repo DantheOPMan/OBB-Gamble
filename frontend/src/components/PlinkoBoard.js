@@ -423,8 +423,8 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
                 <CustomInput
                     type="number"
                     value={amount}
-                    onChange={(e) => setAmount(Math.min(e.target.value, 10))}
-                    inputProps={{ min: 1, max: 10 }}
+                    onChange={(e) => setAmount(Math.min(e.target.value, 50))}
+                    inputProps={{ min: 1, max: 50 }}
                 />
             </CustomFormControl>
             {latestResult && (
