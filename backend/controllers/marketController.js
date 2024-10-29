@@ -97,7 +97,7 @@ const resumeMarket = async (req, res) => {
 
 const closeMarket = async (req, res) => {
   const { marketId } = req.params;
-  const { winner } = req.body;
+  let { winner } = req.body;
 
   const session = await mongoose.startSession();
   session.startTransaction();
