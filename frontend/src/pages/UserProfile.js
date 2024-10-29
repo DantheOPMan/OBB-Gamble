@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getUser, updateUser, fetchUserTransactions, auth } from '../firebase';
+import { getUser, updateUser, fetchUserTransactions, getUserStats, auth } from '../firebase';
 import {
   Container,
   Box,
@@ -10,10 +10,21 @@ import {
   DialogContent,
   DialogTitle,
   TextField,
-  List,
-  ListItem,
-  ListItemText
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Grid,
+  Divider,
 } from '@mui/material';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import CasinoIcon from '@mui/icons-material/Casino';
+import PaymentIcon from '@mui/icons-material/Payment'; // Updated Import
+import UpdateIcon from '@mui/icons-material/Update';
 
 const UserProfile = () => {
   const [userData, setUserData] = useState(null);
@@ -22,6 +33,7 @@ const UserProfile = () => {
   const [openUpdateUsernames, setOpenUpdateUsernames] = useState(false);
   const [discordUsername, setDiscordUsername] = useState('');
   const [obkUsername, setObkUsername] = useState('');
+  const [userStats, setUserStats] = useState(null);
 
   useEffect(() => {
     const currentUser = auth.currentUser;
@@ -58,8 +70,18 @@ const UserProfile = () => {
         }
       };
 
+      const fetchUserStatsData = async () => {
+        try {
+          const stats = await getUserStats(currentUser.uid);
+          setUserStats(stats);
+        } catch (error) {
+          console.error('Error fetching user stats:', error);
+        }
+      };
+
       fetchUserData();
       fetchUserTransactionsData();
+      fetchUserStatsData();
     }
   }, []);
 
@@ -86,132 +108,214 @@ const UserProfile = () => {
   }
 
   return (
-    <Container component="main" maxWidth="xs">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          bgcolor: '#333',
-          padding: 4,
-          borderRadius: 2,
-          color: '#fff',
-        }}
-      >
-        <Typography component="h1" variant="h5" sx={{ color: '#ff7961', marginBottom: 2 }}>
-          User Profile
-        </Typography>
-        <Typography variant="body1">
-          Email: {userData.email}
-        </Typography>
-        <Typography variant="body1">
-          Role: {userData.role}
-        </Typography>
-        <Typography variant="body1">
-          BP Balance: {userData.bpBalance}
-        </Typography>
-        <Typography variant="body1">
-          Discord Username: {userData.discordUsername || 'N/A'}
-        </Typography>
-        <Typography variant="body1">
-          OBK Username: {userData.obkUsername || 'N/A'}
-        </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={handleOpenUpdateUsernames}
-          sx={{ mt: 3, backgroundColor: '#ff7961' }}
+    <Container component="main" maxWidth="md">
+      {/* User Information Card */}
+      <Box sx={{ mt: 4 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            bgcolor: '#444',
+            padding: 3,
+            borderRadius: 2,
+            boxShadow: 3,
+          }}
         >
-          Update Usernames
-        </Button>
+          <AccountCircleIcon sx={{ fontSize: 60, color: '#ff7961', mr: 2 }} />
+          <Box>
+            <Typography variant="h5" component="h1" sx={{ color: '#fff' }}>
+              {userData.obkUsername ? userData.obkUsername.toUpperCase() : 'USERNAME'}
+            </Typography>
+            <Typography variant="body1" sx={{ color: '#ccc' }}>
+              Email: {userData.email}
+            </Typography>
+            <Typography variant="body1" sx={{ color: '#ccc' }}>
+              Role: {userData.role}
+            </Typography>
+            <Typography variant="body1" sx={{ color: '#ccc' }}>
+              BP Balance: {userData.bpBalance}
+            </Typography>
+            <Typography variant="body1" sx={{ color: '#ccc' }}>
+              Discord Username: {userData.discordUsername || 'N/A'}
+            </Typography>
+            <Typography variant="body1" sx={{ color: '#ccc' }}>
+              OBK Username: {userData.obkUsername || 'N/A'}
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleOpenUpdateUsernames}
+            sx={{ ml: 'auto', backgroundColor: '#ff7961' }}
+            startIcon={<UpdateIcon />}
+          >
+            Update
+          </Button>
+        </Box>
       </Box>
-      <Box
-        sx={{
-          marginTop: 4,
-          bgcolor: '#333',
-          padding: 4,
-          borderRadius: 2,
-          color: '#fff',
-        }}
-      >
-        <Typography component="h1" variant="h5" sx={{ color: '#ff7961', marginBottom: 2 }}>
-          Transactions
-        </Typography>
-        <List>
-          {transactions.map((transaction) => {
-            const targetUser = targetUsers[transaction.targetUserId];
-            return (
-              <ListItem key={transaction._id}>
-                <ListItemText
-                  primary={`Amount: ${transaction.amount} BP`}
-                  secondary={
-                    <>
-                      <Typography variant="body2" component="span">
-                        Status: {transaction.status}
-                      </Typography>
-                      <br />
-                      <Typography variant="body2" component="span">
-                        Date: {new Date(transaction.timestamp).toLocaleString()}
-                      </Typography>
-                      {transaction.targetUserId && (
-                        <>
-                          <br />
-                          <Typography variant="body2" component="span">
-                            Target User ID: {transaction.targetUserId}
-                          </Typography>
-                          <br />
-                          <Typography variant="body2" component="span">
-                            Target Discord Username: {targetUser?.discordUsername || 'N/A'}
-                          </Typography>
-                          <br />
-                          <Typography variant="body2" component="span">
-                            Target OBK Username: {targetUser?.obkUsername || 'N/A'}
-                          </Typography>
-                        </>
-                      )}
-                      {transaction.marketId && (
-                        <>
-                          <br />
-                          <Typography variant="body2" component="span">
-                            Market ID: {transaction.marketId}
-                          </Typography>
-                        </>
-                      )}
-                      {transaction.competitorName && (
-                        <>
-                          <br />
-                          <Typography variant="body2" component="span">
-                            Competitor Name: {transaction.competitorName}
-                          </Typography>
-                        </>
-                      )}
-                      {transaction.discordUsername && (
-                        <>
-                          <br />
-                          <Typography variant="body2" component="span">
-                            Discord Username: {transaction.discordUsername}
-                          </Typography>
-                        </>
-                      )}
-                      {transaction.obkUsername && (
-                        <>
-                          <br />
-                          <Typography variant="body2" component="span">
-                            OBK Username: {transaction.obkUsername}
-                          </Typography>
-                        </>
-                      )}
-                    </>
-                  }
-                />
-              </ListItem>
-            );
-          })}
-        </List>
+
+      {/* User Stats Card */}
+      <Box sx={{ mt: 4 }}>
+        <Box
+          sx={{
+            bgcolor: '#444',
+            padding: 3,
+            borderRadius: 2,
+            boxShadow: 3,
+          }}
+        >
+          <Typography variant="h6" sx={{ color: '#ff7961', mb: 2 }}>
+            <AttachMoneyIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+            Statistics
+          </Typography>
+          <Divider sx={{ bgcolor: '#555', mb: 2 }} />
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={4}>
+              <Box
+                sx={{
+                  bgcolor: '#555',
+                  padding: 2,
+                  borderRadius: 1,
+                  textAlign: 'center',
+                }}
+              >
+                <CasinoIcon sx={{ fontSize: 40, color: '#ff7961' }} />
+                <Typography variant="subtitle1" sx={{ color: '#fff', mt: 1 }}>
+                  Total Gambled
+                </Typography>
+                <Typography variant="h6" sx={{ color: '#fff' }}>
+                  {userStats ? userStats.totalGambled.toFixed(2) : 'Loading...'} BP
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Box
+                sx={{
+                  bgcolor: '#555',
+                  padding: 2,
+                  borderRadius: 1,
+                  textAlign: 'center',
+                }}
+              >
+                <CasinoIcon sx={{ fontSize: 40, color: '#ff7961', transform: 'rotate(45deg)' }} />
+                <Typography variant="subtitle1" sx={{ color: '#fff', mt: 1 }}>
+                  Total Won
+                </Typography>
+                <Typography variant="h6" sx={{ color: '#fff' }}>
+                  {userStats ? userStats.totalWon.toFixed(2) : 'Loading...'} BP
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Box
+                sx={{
+                  bgcolor: '#555',
+                  padding: 2,
+                  borderRadius: 1,
+                  textAlign: 'center',
+                }}
+              >
+                <PaymentIcon sx={{ fontSize: 40, color: '#ff7961' }} />
+                <Typography variant="subtitle1" sx={{ color: '#fff', mt: 1 }}>
+                  Total Tipped
+                </Typography>
+                <Typography variant="h6" sx={{ color: '#fff' }}>
+                  {userStats ? userStats.totalTipped.toFixed(2) : 'Loading...'} BP
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+        </Box>
       </Box>
+
+      {/* Transactions Card */}
+      <Box sx={{ mt: 4, mb: 4 }}>
+        <Box
+          sx={{
+            bgcolor: '#444',
+            padding: 3,
+            borderRadius: 2,
+            boxShadow: 3,
+          }}
+        >
+          <Typography variant="h6" sx={{ color: '#ff7961', mb: 2 }}>
+            <AttachMoneyIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+            Transactions
+          </Typography>
+          <Divider sx={{ bgcolor: '#555', mb: 2 }} />
+          {transactions.length === 0 ? (
+            <Typography variant="body1" sx={{ color: '#ccc' }}>
+              No transactions found.
+            </Typography>
+          ) : (
+            <TableContainer component={Paper} sx={{ bgcolor: '#333' }}>
+              <Table aria-label="transactions table">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ color: '#fff' }}>Amount (BP)</TableCell>
+                    <TableCell sx={{ color: '#fff' }}>Status</TableCell>
+                    <TableCell sx={{ color: '#fff' }}>Date</TableCell>
+                    <TableCell sx={{ color: '#fff' }}>Details</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {transactions.map((transaction) => {
+                    const targetUser = targetUsers[transaction.targetUserId];
+                    return (
+                      <TableRow key={transaction._id}>
+                        <TableCell sx={{ color: transaction.amount < 0 ? '#f44336' : '#4caf50' }}>
+                          {transaction.amount} BP
+                        </TableCell>
+                        <TableCell sx={{ color: '#fff' }}>{transaction.status}</TableCell>
+                        <TableCell sx={{ color: '#fff' }}>
+                          {new Date(transaction.timestamp).toLocaleString()}
+                        </TableCell>
+                        <TableCell sx={{ color: '#fff' }}>
+                          {transaction.targetUserId && (
+                            <>
+                              <Typography variant="body2">
+                                <strong>Target:</strong> {targetUser?.discordUsername || 'N/A'} (
+                                {targetUser?.obkUsername || 'N/A'})
+                              </Typography>
+                            </>
+                          )}
+                          {transaction.marketId && (
+                            <Typography variant="body2">
+                              <strong>Market ID:</strong> {transaction.marketId}
+                            </Typography>
+                          )}
+                          {transaction.competitorName && (
+                            <Typography variant="body2">
+                              <strong>Competitor:</strong> {transaction.competitorName}
+                            </Typography>
+                          )}
+                          {transaction.discordUsername && (
+                            <Typography variant="body2">
+                              <strong>Discord:</strong> {transaction.discordUsername}
+                            </Typography>
+                          )}
+                          {transaction.obkUsername && (
+                            <Typography variant="body2">
+                              <strong>OBK:</strong> {transaction.obkUsername}
+                            </Typography>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Box>
+      </Box>
+
+      {/* Update Usernames Dialog */}
       <Dialog open={openUpdateUsernames} onClose={handleCloseUpdateUsernames}>
-        <DialogTitle sx={{ bgcolor: '#333', color: '#fff' }}>Update Usernames</DialogTitle>
+        <DialogTitle sx={{ bgcolor: '#333', color: '#fff' }}>
+          <UpdateIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+          Update Usernames
+        </DialogTitle>
         <DialogContent sx={{ bgcolor: '#333', color: '#fff' }}>
           <TextField
             margin="dense"
@@ -222,7 +326,13 @@ const UserProfile = () => {
             variant="outlined"
             value={discordUsername}
             onChange={(e) => setDiscordUsername(e.target.value)}
-            sx={{ mb: 2 }}
+            sx={{ mb: 2, color: '#fff' }}
+            InputLabelProps={{
+              style: { color: '#fff' },
+            }}
+            InputProps={{
+              style: { color: '#fff' },
+            }}
           />
           <TextField
             margin="dense"
@@ -233,14 +343,20 @@ const UserProfile = () => {
             variant="outlined"
             value={obkUsername}
             onChange={(e) => setObkUsername(e.target.value)}
-            sx={{ mb: 2 }}
+            sx={{ mb: 2, color: '#fff' }}
+            InputLabelProps={{
+              style: { color: '#fff' },
+            }}
+            InputProps={{
+              style: { color: '#fff' },
+            }}
           />
         </DialogContent>
         <DialogActions sx={{ bgcolor: '#333', color: '#fff' }}>
-          <Button onClick={handleCloseUpdateUsernames} color="primary" sx={{ color: '#ff7961' }}>
+          <Button onClick={handleCloseUpdateUsernames} sx={{ color: '#ff7961' }}>
             Cancel
           </Button>
-          <Button onClick={handleUpdateUsernames} color="primary" sx={{ color: '#ff7961' }}>
+          <Button onClick={handleUpdateUsernames} sx={{ color: '#ff7961' }}>
             Save
           </Button>
         </DialogActions>

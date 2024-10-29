@@ -57,6 +57,10 @@ const getUser = async (uid) => {
   return makeRequest(`/api/users/${uid}`, 'GET');
 };
 
+const getUserStats = async (uid) => { // **New Function**
+  return makeRequest(`/api/users/${uid}/stats`, 'GET');
+};
+
 const requestDeposit = async (userId, amount, discordUsername, obkUsername) => {
   return makeRequest('/api/transactions/deposit', 'POST', { userId, amount, discordUsername, obkUsername });
 };
@@ -216,6 +220,7 @@ export {
   onAuthStateChanged,
   registerUser,
   getUser,
+  getUserStats,
   updateUser,
   requestDeposit,
   requestWithdraw,
