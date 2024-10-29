@@ -148,11 +148,48 @@ const getUserStats = async (req, res) => {
 
     const totalTipped = tipTransactions.reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
 
+    // **Total Tips Received**
+
+    // Transactions where targetUserId is uid, status is 'approved'
+    const tipsReceivedTransactions = await Transaction.find({
+      targetUserId: uid,
+      status: 'approved',
+    });
+
+    const totalTipsReceived = tipsReceivedTransactions.reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
+
+    // **Total Bet in Markets**
+
+    // Transactions where userId is uid, marketId exists, amount is negative, status is 'approved'
+    const marketBetTransactions = await Transaction.find({
+      userId: uid,
+      marketId: { $exists: true },
+      amount: { $lt: 0 },
+      status: 'approved',
+    });
+
+    const totalBetInMarkets = marketBetTransactions.reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
+
+    // **Total Won in Markets**
+
+    // Transactions where userId is uid, marketId exists, amount is positive, status is 'approved'
+    const marketWinTransactions = await Transaction.find({
+      userId: uid,
+      marketId: { $exists: true },
+      amount: { $gt: 0 },
+      status: 'approved',
+    });
+
+    const totalWonInMarkets = marketWinTransactions.reduce((sum, transaction) => sum + transaction.amount, 0);
+
     // Respond with the computed stats
     res.status(200).json({
       totalGambled,
       totalWon,
       totalTipped,
+      totalTipsReceived,
+      totalBetInMarkets,
+      totalWonInMarkets,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
