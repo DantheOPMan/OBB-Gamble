@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Container, Box, Typography, List, ListItem, ListItemText, Paper } from '@mui/material';
-import { getMarkets } from '../firebase';
+import { getMarkets, getBetTransactions } from '../firebase';
 
 const MarketsPage = () => {
   const [openMarkets, setOpenMarkets] = useState([]);
@@ -12,9 +12,28 @@ const MarketsPage = () => {
     const fetchMarkets = async () => {
       try {
         const response = await getMarkets();
-        setOpenMarkets(response.filter(market => market.status === 'open'));
-        setPausedMarkets(response.filter(market => market.status === 'paused'));
-        setClosedMarkets(response.filter(market => market.status === 'closed'));
+
+        // Fetch additional data for each market
+        const marketDataPromises = response.map(async (market) => {
+          let itemsToDisplay = [];
+
+          if (market.marketType === 'combination') {
+            const combinationLikelihoods = await calculateCombinationLikelihoods(market._id);
+            combinationLikelihoods.sort((a, b) => a.combination.localeCompare(b.combination));
+            itemsToDisplay = combinationLikelihoods.slice(0, 5);
+          } else {
+            const competitorsWithLikelihoods = calculateLikelihoods(market.competitors);
+            itemsToDisplay = competitorsWithLikelihoods.slice(0, 5);
+          }
+
+          return { ...market, itemsToDisplay };
+        });
+
+        const marketsWithData = await Promise.all(marketDataPromises);
+
+        setOpenMarkets(marketsWithData.filter(market => market.status === 'open'));
+        setPausedMarkets(marketsWithData.filter(market => market.status === 'paused'));
+        setClosedMarkets(marketsWithData.filter(market => market.status === 'closed'));
       } catch (error) {
         console.error('Failed to fetch markets', error);
       }
@@ -31,10 +50,27 @@ const MarketsPage = () => {
     }));
   };
 
-  const renderMarket = (market, statusLabel = '') => {
-    const competitorsWithLikelihoods = calculateLikelihoods(market.competitors);
-    const topCompetitors = competitorsWithLikelihoods.slice(0, 5);
+  const calculateCombinationLikelihoods = async (marketId) => {
+    const transactions = await getBetTransactions(marketId);
+    const combinationBets = {};
+    transactions.forEach(transaction => {
+      if (transaction.competitorName) {
+        const combination = transaction.competitorName.split(',').map(name => name.trim()).sort().join(', ');
+        if (!combinationBets[combination]) {
+          combinationBets[combination] = 0;
+        }
+        combinationBets[combination] += Math.abs(transaction.amount);
+      }
+    });
+    const totalBet = Object.values(combinationBets).reduce((sum, amount) => sum + amount, 0) || 1;
+    const combinationsWithLikelihoods = Object.entries(combinationBets).map(([combination, amount]) => ({
+      combination,
+      likelihood: (amount / totalBet) * 100,
+    }));
+    return combinationsWithLikelihoods;
+  };
 
+  const renderMarket = (market, statusLabel = '') => {
     return (
       <Paper
         key={market._id}
@@ -58,11 +94,16 @@ const MarketsPage = () => {
         <Typography variant="subtitle2" sx={{ color: '#FFF', marginBottom: 1 }}>
           {market.marketType === 'combination' ? `Combination Market (Select ${market.combinationSize})` : 'Single Option Market'}
         </Typography>
+        {market.status === 'closed' && market.winner && (
+          <Typography variant="body2" sx={{ color: '#FFF', marginBottom: 1 }}>
+            Winner: {market.winner}
+          </Typography>
+        )}
         <List>
-          {topCompetitors.map((competitor) => (
-            <ListItem key={competitor.name}>
+          {market.itemsToDisplay && market.itemsToDisplay.map((item) => (
+            <ListItem key={item.name || item.combination}>
               <ListItemText
-                primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
+                primary={`${item.name || item.combination}: ${item.likelihood.toFixed(2)}%`}
                 sx={{ color: '#FFF' }}
               />
             </ListItem>
@@ -84,6 +125,7 @@ const MarketsPage = () => {
       <Box
         sx={{
           marginTop: 8,
+          marginBottom: 8,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -92,7 +134,7 @@ const MarketsPage = () => {
         <Typography component="h1" variant="h5" sx={{ marginBottom: 4 }}>
           Available Markets
         </Typography>
-        
+
         <Typography component="h2" variant="h6" sx={{ marginTop: 2, marginBottom: 2 }}>
           Open Markets
         </Typography>
@@ -106,51 +148,7 @@ const MarketsPage = () => {
         <Typography component="h2" variant="h6" sx={{ marginTop: 4, marginBottom: 2 }}>
           Closed Markets
         </Typography>
-        {closedMarkets.map((market) => (
-          <Paper
-            key={market._id}
-            component={Link}
-            to={`/markets/${market._id}`}
-            sx={{
-              width: '100%',
-              marginBottom: 2,
-              padding: 2,
-              backgroundColor: '#2c2c2c',
-              textDecoration: 'none',
-              color: '#FFF',
-              '&:hover': {
-                backgroundColor: '#3c3c3c',
-              },
-            }}
-          >
-            <Typography variant="h6" sx={{ marginBottom: 1 }}>
-              {market.name} (Closed)
-            </Typography>
-            <Typography variant="subtitle2" sx={{ color: '#FFF', marginBottom: 1 }}>
-              {market.marketType === 'combination' ? `Combination Market (Select ${market.combinationSize})` : 'Single Option Market'}
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#FFF', marginBottom: 1 }}>
-              Winner: {market.winner}
-            </Typography>
-            <List>
-              {calculateLikelihoods(market.competitors).slice(0, 5).map((competitor) => (
-                <ListItem key={competitor.name}>
-                  <ListItemText
-                    primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
-                    sx={{ color: '#FFF' }}
-                  />
-                </ListItem>
-              ))}
-            </List>
-            <Typography
-              component="div"
-              variant="body2"
-              sx={{ color: '#FFF', marginTop: 1 }}
-            >
-              Continue to see all competitors
-            </Typography>
-          </Paper>
-        ))}
+        {closedMarkets.map((market) => renderMarket(market, '(Closed)'))}
       </Box>
     </Container>
   );

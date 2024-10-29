@@ -110,7 +110,7 @@ const closeMarket = async (req, res) => {
       return res.status(404).json({ message: 'Market not found' });
     }
 
-    const winningCombination = winner ? winner.split(',') : [];
+    let winningCombination = winner ? winner.split(',') : [];
 
     if (market.marketType === 'combination' && winner) {
       if (winningCombination.length !== market.combinationSize) {
@@ -120,14 +120,28 @@ const closeMarket = async (req, res) => {
           message: `Winning combination must have ${market.combinationSize} competitors`,
         });
       }
-      // Validate competitors
-      for (const name of winningCombination) {
+
+      // Validate competitors and sort the winning combination
+      const sortedWinningCombination = winningCombination.map(name => name.trim()).sort();
+
+      for (const name of sortedWinningCombination) {
         const exists = market.competitors.find((c) => c.name === name);
         if (!exists) {
           await session.abortTransaction();
           session.endSession();
           return res.status(404).json({ message: `Competitor ${name} not found` });
         }
+      }
+
+      // Join the sorted combination into a string to store
+      winner = sortedWinningCombination.join(', ');
+    } else if (market.marketType === 'single') {
+      // For single-option markets, validate the winner
+      const exists = market.competitors.find((c) => c.name === winner);
+      if (!exists) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ message: `Competitor ${winner} not found` });
       }
     }
 
@@ -138,7 +152,15 @@ const closeMarket = async (req, res) => {
     let totalWinningBets = 0;
     if (winner) {
       totalWinningBets = transactions
-        .filter((transaction) => transaction.competitorName === winner)
+        .filter((transaction) => {
+          if (market.marketType === 'combination') {
+            // For combination bets, compare sorted combinations
+            const transactionCombination = transaction.competitorName.split(',').map(name => name.trim()).sort().join(', ');
+            return transactionCombination === winner;
+          } else {
+            return transaction.competitorName === winner;
+          }
+        })
         .reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
     }
 
@@ -190,7 +212,16 @@ const closeMarket = async (req, res) => {
       }
     } else {
       for (const transaction of transactions) {
-        if (transaction.competitorName === winner) {
+        let isWinningBet = false;
+
+        if (market.marketType === 'combination') {
+          const transactionCombination = transaction.competitorName.split(',').map(name => name.trim()).sort().join(', ');
+          isWinningBet = transactionCombination === winner;
+        } else {
+          isWinningBet = transaction.competitorName === winner;
+        }
+
+        if (isWinningBet) {
           const user = await User.findOne({ uid: transaction.userId }).session(session);
           if (user) {
             const userPayout = Math.round((Math.abs(transaction.amount) / totalWinningBets) * netPool);
@@ -285,12 +316,10 @@ const placeBet = async (req, res) => {
       return res.status(400).json({ message: 'Insufficient balance or invalid amount' });
     }
 
-    // Deduct the amount from user balance
-    user.bpBalance -= amount;
-    await user.save({ session });
+    let standardizedCompetitorName = competitorName;
 
     if (market.marketType === 'combination') {
-      const selectedCompetitors = competitorName.split(',');
+      const selectedCompetitors = competitorName.split(',').map(name => name.trim());
       if (selectedCompetitors.length !== market.combinationSize) {
         await session.abortTransaction();
         session.endSession();
@@ -299,7 +328,8 @@ const placeBet = async (req, res) => {
         });
       }
 
-      // Validate each competitor
+      // Validate and sort each competitor
+      const sortedSelectedCompetitors = [];
       for (const name of selectedCompetitors) {
         const exists = market.competitors.find((c) => c.name === name);
         if (!exists) {
@@ -307,7 +337,11 @@ const placeBet = async (req, res) => {
           session.endSession();
           return res.status(404).json({ message: `Competitor ${name} not found` });
         }
+        sortedSelectedCompetitors.push(name);
       }
+
+      // Sort the competitor names and join them into a standardized string
+      standardizedCompetitorName = sortedSelectedCompetitors.sort().join(', ');
     } else {
       const competitor = market.competitors.find((c) => c.name === competitorName);
       if (!competitor) {
@@ -317,16 +351,19 @@ const placeBet = async (req, res) => {
       }
       // Update the competitor's value
       competitor.value += amount;
+      await market.save({ session });
     }
 
-    await market.save({ session });
+    // Deduct the amount from user balance
+    user.bpBalance -= amount;
+    await user.save({ session });
 
     // Create a new transaction
     const newTransaction = new Transaction({
       userId,
       amount: -amount,
       marketId,
-      competitorName,
+      competitorName: standardizedCompetitorName,
       status: 'approved',
       discordUsername: user.discordUsername,
       obkUsername: user.obkUsername,

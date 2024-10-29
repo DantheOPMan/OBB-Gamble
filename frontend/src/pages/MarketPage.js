@@ -179,7 +179,7 @@ const MarketPage = () => {
 
     // Now, go through transactions in order, and calculate dominance over time
     transactions.forEach((transaction, index) => {
-      const currentTransactionTime = new Date(transaction.timestamp);
+      //const currentTransactionTime = new Date(transaction.timestamp);
       const transactionsUpToCurrent = transactions.slice(0, index + 1);
 
       // Calculate total amount bet up to current time
@@ -303,7 +303,7 @@ const MarketPage = () => {
 
     try {
       const competitorName = marketData.marketType === 'combination'
-        ? selectedCompetitors.join(',')
+        ? selectedCompetitors.slice().sort().join(', ')
         : selectedCompetitor;
 
       await placeBet(marketId, betAmountNum, competitorName);

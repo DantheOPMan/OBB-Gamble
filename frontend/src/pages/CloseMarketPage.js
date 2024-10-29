@@ -54,7 +54,7 @@ const CloseMarketPage = () => {
         setOpenToast(true);
         return;
       }
-      const winner = selectedWinner.join(',');
+      const winner = selectedWinner.slice().sort().join(', ');
       await closeMarket(selectedMarket, winner);
       setMessage('Market closed successfully');
       setOpenToast(true);

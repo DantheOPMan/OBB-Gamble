@@ -36,7 +36,8 @@ const CreateMarketPage = () => {
     try {
       const competitorsWithInitialValue = competitors.map(competitor => ({
         ...competitor,
-        value: 0,
+        name: competitor.name.trim(),
+        value: 0,      
       }));
       await createMarket(marketName, competitorsWithInitialValue, marketType, combinationSize);
       setMessage('Market created successfully');
