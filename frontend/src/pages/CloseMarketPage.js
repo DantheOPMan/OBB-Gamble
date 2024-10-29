@@ -1,11 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Box, Typography, Button, Select, MenuItem, Snackbar } from '@mui/material';
-import { getMarkets, closeMarket, pauseMarket, resumeMarket } from '../firebase'; // Import resumeMarket
+import {
+  Container,
+  Box,
+  Typography,
+  Button,
+  Select,
+  MenuItem,
+  Snackbar,
+  Checkbox,
+  ListItemText,
+} from '@mui/material';
+import { getMarkets, closeMarket, pauseMarket, resumeMarket } from '../firebase';
 
 const CloseMarketPage = () => {
   const [markets, setMarkets] = useState([]);
   const [selectedMarket, setSelectedMarket] = useState('');
-  const [selectedWinner, setSelectedWinner] = useState('');
+  const [selectedWinner, setSelectedWinner] = useState([]);
   const [message, setMessage] = useState('');
   const [openToast, setOpenToast] = useState(false);
 
@@ -13,7 +23,7 @@ const CloseMarketPage = () => {
     const fetchMarkets = async () => {
       try {
         const response = await getMarkets();
-        setMarkets(response.filter(market => market.status === 'open' || market.status === 'paused' || market.status === 'closed')); // Include open, paused, and closed markets
+        setMarkets(response.filter(market => ['open', 'paused', 'closed'].includes(market.status)));
       } catch (error) {
         console.error('Failed to fetch markets', error);
       }
@@ -24,21 +34,31 @@ const CloseMarketPage = () => {
 
   const handleMarketChange = (event) => {
     setSelectedMarket(event.target.value);
-    setSelectedWinner(''); // Reset winner selection when market changes
+    setSelectedWinner([]);
   };
 
   const handleWinnerChange = (event) => {
-    setSelectedWinner(event.target.value);
+    const market = markets.find(m => m._id === selectedMarket);
+    if (market.marketType === 'combination') {
+      setSelectedWinner(event.target.value);
+    } else {
+      setSelectedWinner([event.target.value]);
+    }
   };
 
   const handleCloseMarket = async () => {
     try {
-      await closeMarket(selectedMarket, selectedWinner);
+      const market = markets.find(m => m._id === selectedMarket);
+      if (market.marketType === 'combination' && selectedWinner.length !== market.combinationSize) {
+        setMessage(`Please select exactly ${market.combinationSize} winners`);
+        setOpenToast(true);
+        return;
+      }
+      const winner = selectedWinner.join(',');
+      await closeMarket(selectedMarket, winner);
       setMessage('Market closed successfully');
       setOpenToast(true);
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000); // Adjust the delay as needed
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       setMessage('Failed to close market ' + error.message);
       setOpenToast(true);
@@ -52,7 +72,7 @@ const CloseMarketPage = () => {
       setOpenToast(true);
       setTimeout(() => {
         window.location.reload();
-      }, 1000); // Adjust the delay as needed
+      }, 1000);
     } catch (error) {
       setMessage('Failed to pause market ' + error.message);
       setOpenToast(true);
@@ -66,7 +86,7 @@ const CloseMarketPage = () => {
       setOpenToast(true);
       setTimeout(() => {
         window.location.reload();
-      }, 1000); // Adjust the delay as needed
+      }, 1000);
     } catch (error) {
       setMessage('Failed to resume market');
       setOpenToast(true);
@@ -96,11 +116,12 @@ const CloseMarketPage = () => {
           onChange={handleMarketChange}
           displayEmpty
           fullWidth
-          sx={{ mt: 3, mb: 3, bgcolor: '#333' }}
+          sx={{ mt: 3, mb: 3, bgcolor: '#333', color: '#fff' }}
           MenuProps={{
             PaperProps: {
               sx: {
                 bgcolor: '#333',
+                color: '#fff',
               },
             },
           }}
@@ -112,31 +133,66 @@ const CloseMarketPage = () => {
             </MenuItem>
           ))}
         </Select>
-        <Select
-          value={selectedWinner}
-          onChange={handleWinnerChange}
-          displayEmpty
-          fullWidth
-          sx={{ mb: 3, bgcolor: '#333' }}
-          disabled={!selectedMarket}
-          MenuProps={{
-            PaperProps: {
-              sx: {
-                bgcolor: '#333',
-              },
-            },
-          }}
-        >
-          <MenuItem value="" disabled sx={{ bgcolor: '#333', color: 'white' }}>Select Winner</MenuItem>
-          {selectedMarket && markets.find((market) => market._id === selectedMarket).competitors.map((competitor, index) => (
-            <MenuItem key={index} value={competitor.name} sx={{ bgcolor: '#333', color: 'white' }}>{competitor.name}</MenuItem>
-          ))}
-        </Select>
+        {selectedMarket && (
+          <>
+            <Typography variant="subtitle1" sx={{ color: '#fff', mb: 1 }}>
+              Select Winner(s)
+            </Typography>
+            {markets.find(m => m._id === selectedMarket)?.marketType === 'combination' ? (
+              <Select
+                multiple
+                value={selectedWinner}
+                onChange={handleWinnerChange}
+                renderValue={(selected) => selected.join(', ')}
+                fullWidth
+                sx={{ mb: 3, bgcolor: '#333', color: '#fff' }}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      bgcolor: '#333',
+                      color: '#fff',
+                    },
+                  },
+                }}
+              >
+                {markets.find(m => m._id === selectedMarket)?.competitors.map((competitor, index) => (
+                  <MenuItem key={index} value={competitor.name}>
+                    <Checkbox checked={selectedWinner.includes(competitor.name)} />
+                    <ListItemText primary={competitor.name} />
+                  </MenuItem>
+                ))}
+              </Select>
+            ) : (
+              <Select
+                value={selectedWinner[0] || ''}
+                onChange={handleWinnerChange}
+                displayEmpty
+                fullWidth
+                sx={{ mb: 3, bgcolor: '#333', color: '#fff' }}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      bgcolor: '#333',
+                      color: '#fff',
+                    },
+                  },
+                }}
+              >
+                <MenuItem value="" disabled>Select Winner</MenuItem>
+                {markets.find(m => m._id === selectedMarket)?.competitors.map((competitor, index) => (
+                  <MenuItem key={index} value={competitor.name}>
+                    {competitor.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            )}
+          </>
+        )}
         <Button
           variant="contained"
           color="primary"
           onClick={handleCloseMarket}
-          disabled={!selectedMarket || !selectedWinner || markets.find(market => market._id === selectedMarket)?.status === 'closed'}
+          disabled={!selectedMarket || !selectedWinner.length || markets.find(market => market._id === selectedMarket)?.status === 'closed'}
           sx={{ mb: 2 }}
         >
           Close Market

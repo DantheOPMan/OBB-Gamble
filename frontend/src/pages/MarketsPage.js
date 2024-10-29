@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Container, Box, Typography, List, ListItem, ListItemText, Paper } from '@mui/material';
-import { getMarkets } from '../firebase'; // Import the function to fetch markets
+import { getMarkets } from '../firebase';
 
 const MarketsPage = () => {
   const [openMarkets, setOpenMarkets] = useState([]);
@@ -24,7 +24,7 @@ const MarketsPage = () => {
   }, []);
 
   const calculateLikelihoods = (competitors) => {
-    const totalValue = competitors.reduce((sum, competitor) => sum + competitor.value, 0) || 1; // Set totalValue to 1 if it's 0
+    const totalValue = competitors.reduce((sum, competitor) => sum + competitor.value, 0) || 1;
     return competitors.map(competitor => ({
       ...competitor,
       likelihood: (competitor.value / totalValue) * 100,
@@ -44,16 +44,19 @@ const MarketsPage = () => {
           width: '100%',
           marginBottom: 2,
           padding: 2,
-          backgroundColor: '#2c2c2c', // Dark pastel gray background
+          backgroundColor: '#2c2c2c',
           textDecoration: 'none',
           color: '#FFF',
           '&:hover': {
-            backgroundColor: '#3c3c3c', // Slightly lighter gray on hover
+            backgroundColor: '#3c3c3c',
           },
         }}
       >
         <Typography variant="h6" sx={{ marginBottom: 1 }}>
           {market.name} {statusLabel}
+        </Typography>
+        <Typography variant="subtitle2" sx={{ color: '#FFF', marginBottom: 1 }}>
+          {market.marketType === 'combination' ? `Combination Market (Select ${market.combinationSize})` : 'Single Option Market'}
         </Typography>
         <List>
           {topCompetitors.map((competitor) => (
@@ -112,16 +115,19 @@ const MarketsPage = () => {
               width: '100%',
               marginBottom: 2,
               padding: 2,
-              backgroundColor: '#2c2c2c', // Dark pastel gray background
+              backgroundColor: '#2c2c2c',
               textDecoration: 'none',
               color: '#FFF',
               '&:hover': {
-                backgroundColor: '#3c3c3c', // Slightly lighter gray on hover
+                backgroundColor: '#3c3c3c',
               },
             }}
           >
             <Typography variant="h6" sx={{ marginBottom: 1 }}>
               {market.name} (Closed)
+            </Typography>
+            <Typography variant="subtitle2" sx={{ color: '#FFF', marginBottom: 1 }}>
+              {market.marketType === 'combination' ? `Combination Market (Select ${market.combinationSize})` : 'Single Option Market'}
             </Typography>
             <Typography variant="body2" sx={{ color: '#FFF', marginBottom: 1 }}>
               Winner: {market.winner}

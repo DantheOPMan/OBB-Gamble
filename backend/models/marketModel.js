@@ -9,7 +9,9 @@ const marketSchema = new mongoose.Schema({
     }
   ],
   status: { type: String, enum: ['open', 'paused', 'closed'], default: 'open' },
-  winner: { type: String }
+  winner: { type: String },
+  marketType: { type: String, default: 'single' }, // 'single' or 'combination'
+  combinationSize: { type: Number, default: 1 },
 });
 
 const Market = mongoose.model('Market', marketSchema);

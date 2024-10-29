@@ -1,10 +1,24 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Line } from 'react-chartjs-2';
-import { Container, Box, Typography, Paper, List, ListItem, ListItemText, TextField, Button, MenuItem, Select, Snackbar, Grid } from '@mui/material';
+import {
+  Container,
+  Box,
+  Typography,
+  Paper,
+  List,
+  ListItem,
+  ListItemText,
+  TextField,
+  Button,
+  MenuItem,
+  Select,
+  Snackbar,
+  Grid,
+  Checkbox,
+} from '@mui/material';
 import { auth, getMarketById, placeBet, getBetTransactions, getUser } from '../firebase';
 
-// Import and register necessary components from Chart.js
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -31,6 +45,7 @@ const MarketPage = () => {
   const [marketData, setMarketData] = useState({});
   const [betAmount, setBetAmount] = useState('');
   const [selectedCompetitor, setSelectedCompetitor] = useState('');
+  const [selectedCompetitors, setSelectedCompetitors] = useState([]);
   const [message, setMessage] = useState('');
   const [openToast, setOpenToast] = useState(false);
   const [betTransactions, setBetTransactions] = useState([]);
@@ -117,18 +132,107 @@ const MarketPage = () => {
     return competitorDominance;
   };
 
-  const competitorsWithLikelihoods = marketData.competitors ? calculateLikelihoods(marketData.competitors) : [];
-  const competitorsWithDominance = marketData.competitors ? calculateDominance(marketData.competitors, betTransactions) : {};
+  const calculateCombinationBets = (transactions) => {
+    const combinationBets = {};
+    transactions.forEach(transaction => {
+      if (transaction.competitorName) {
+        const combination = transaction.competitorName.split(',').sort().join(', ');
+        if (!combinationBets[combination]) {
+          combinationBets[combination] = 0;
+        }
+        combinationBets[combination] += Math.abs(transaction.amount);
+      }
+    });
+    return combinationBets;
+  };
+
+  // New function to calculate likelihoods for combinations
+  const calculateCombinationLikelihoods = (transactions) => {
+    const combinationBets = calculateCombinationBets(transactions);
+    const totalBet = Object.values(combinationBets).reduce((sum, amount) => sum + amount, 0) || 1;
+
+    const combinationsWithLikelihoods = Object.entries(combinationBets).map(([combination, amount]) => ({
+      combination,
+      likelihood: (amount / totalBet) * 100,
+    }));
+
+    return combinationsWithLikelihoods;
+  };
+
+  // New function to calculate dominance for combinations
+  const calculateCombinationDominance = (transactions) => {
+    const combinationDominance = {};
+    const uniqueCombinations = new Set();
+
+    // First, get all unique combinations
+    transactions.forEach(transaction => {
+      if (transaction.competitorName) {
+        const combination = transaction.competitorName.split(',').sort().join(', ');
+        uniqueCombinations.add(combination);
+      }
+    });
+
+    // Initialize dominance arrays for each combination
+    uniqueCombinations.forEach(combination => {
+      combinationDominance[combination] = [];
+    });
+
+    // Now, go through transactions in order, and calculate dominance over time
+    transactions.forEach((transaction, index) => {
+      const currentTransactionTime = new Date(transaction.timestamp);
+      const transactionsUpToCurrent = transactions.slice(0, index + 1);
+
+      // Calculate total amount bet up to current time
+      const totalBetUpToCurrent = transactionsUpToCurrent.reduce((sum, tx) => sum + Math.abs(tx.amount), 0) || 1;
+
+      // Calculate amount bet on each combination up to current time
+      const combinationAmounts = {};
+
+      uniqueCombinations.forEach(combination => {
+        const amountOnCombination = transactionsUpToCurrent
+          .filter(tx => {
+            if (!tx.competitorName) return false;
+            const txCombination = tx.competitorName.split(',').sort().join(', ');
+            return txCombination === combination;
+          })
+          .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+        combinationAmounts[combination] = amountOnCombination;
+      });
+
+      // Calculate dominance for each combination at current time
+      uniqueCombinations.forEach(combination => {
+        const dominance = (combinationAmounts[combination] / totalBetUpToCurrent) * 100;
+        combinationDominance[combination].push({
+          timestamp: transaction.timestamp,
+          dominance
+        });
+      });
+    });
+
+    return combinationDominance;
+  };
+
+  const competitorsWithLikelihoods = marketData.marketType === 'single' && marketData.competitors
+    ? calculateLikelihoods(marketData.competitors)
+    : [];
+
+  const combinationsWithLikelihoods = marketData.marketType === 'combination'
+    ? calculateCombinationLikelihoods(betTransactions)
+    : [];
+
+  // Color map for consistent colors
+  const colorMap = {};
+
+  const assignColors = (keys) => {
+    keys.forEach((key, index) => {
+      const color = `hsl(${(index * 360) / keys.length}, 70%, 50%)`;
+      colorMap[key] = color;
+    });
+  };
 
   const data = {
     labels: betTransactions.map(tx => new Date(tx.timestamp).toLocaleString()),
-    datasets: Object.keys(competitorsWithDominance).map(competitor => ({
-      label: competitor,
-      data: competitorsWithDominance[competitor].map(d => d.dominance),
-      fill: false,
-      backgroundColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.2)`,
-      borderColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 1)`,
-    })),
+    datasets: [],
   };
 
   const options = {
@@ -141,6 +245,32 @@ const MarketPage = () => {
       },
     },
   };
+
+  if (marketData.marketType === 'combination') {
+    const combinationDominance = calculateCombinationDominance(betTransactions);
+    const combinations = Object.keys(combinationDominance);
+    assignColors(combinations);
+
+    data.datasets = combinations.map(combination => ({
+      label: combination,
+      data: combinationDominance[combination].map(d => d.dominance),
+      fill: false,
+      backgroundColor: colorMap[combination],
+      borderColor: colorMap[combination],
+    }));
+  } else {
+    const competitorsWithDominance = marketData.competitors ? calculateDominance(marketData.competitors, betTransactions) : {};
+    const competitors = Object.keys(competitorsWithDominance);
+    assignColors(competitors);
+
+    data.datasets = competitors.map(competitor => ({
+      label: competitor,
+      data: competitorsWithDominance[competitor].map(d => d.dominance),
+      fill: false,
+      backgroundColor: colorMap[competitor],
+      borderColor: colorMap[competitor],
+    }));
+  }
 
   const handleBet = async () => {
     const betAmountNum = Number(betAmount);
@@ -157,17 +287,30 @@ const MarketPage = () => {
       return;
     }
 
-    if (!selectedCompetitor) {
-      setMessage('Please select a competitor');
-      setOpenToast(true);
-      return;
+    if (marketData.marketType === 'combination') {
+      if (selectedCompetitors.length !== marketData.combinationSize) {
+        setMessage(`Please select exactly ${marketData.combinationSize} competitors`);
+        setOpenToast(true);
+        return;
+      }
+    } else {
+      if (!selectedCompetitor) {
+        setMessage('Please select a competitor');
+        setOpenToast(true);
+        return;
+      }
     }
 
     try {
-      await placeBet(marketId, betAmountNum, selectedCompetitor);
-      setMessage(`Bet placed on ${selectedCompetitor} for ${betAmountNum} BP`);
+      const competitorName = marketData.marketType === 'combination'
+        ? selectedCompetitors.join(',')
+        : selectedCompetitor;
+
+      await placeBet(marketId, betAmountNum, competitorName);
+      setMessage(`Bet placed on ${competitorName} for ${betAmountNum} BP`);
       setOpenToast(true);
       setBetAmount('');
+      setSelectedCompetitors([]);
       setSelectedCompetitor('');
 
       const transactions = await getBetTransactions(marketId);
@@ -255,30 +398,56 @@ const MarketPage = () => {
                     style: { color: '#FFF' },
                   }}
                 />
-                <Select
-                  value={selectedCompetitor}
-                  onChange={(e) => setSelectedCompetitor(e.target.value)}
-                  displayEmpty
-                  fullWidth
-                  sx={{ marginBottom: 2, color: '#FFF', '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: 'white' } } }}
-                  MenuProps={{
-                    PaperProps: {
-                      sx: {
-                        bgcolor: '#2c2c2c',
-                        color: '#FFF',
+                {marketData.marketType === 'combination' ? (
+                  <Select
+                    multiple
+                    value={selectedCompetitors}
+                    onChange={(e) => setSelectedCompetitors(e.target.value)}
+                    renderValue={(selected) => selected.join(', ')}
+                    fullWidth
+                    sx={{ marginBottom: 2, color: '#FFF', '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: 'white' } } }}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          bgcolor: '#2c2c2c',
+                          color: '#FFF',
+                        },
                       },
-                    },
-                  }}
-                >
-                  <MenuItem value="" disabled>
-                    Select Competitor
-                  </MenuItem>
-                  {marketData.competitors && marketData.competitors.map((competitor) => (
-                    <MenuItem key={competitor.name} value={competitor.name} sx={{ color: '#FFF' }}>
-                      {competitor.name}
+                    }}
+                  >
+                    {marketData.competitors && marketData.competitors.map((competitor) => (
+                      <MenuItem key={competitor.name} value={competitor.name}>
+                        <Checkbox checked={selectedCompetitors.includes(competitor.name)} />
+                        <ListItemText primary={competitor.name} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                ) : (
+                  <Select
+                    value={selectedCompetitor}
+                    onChange={(e) => setSelectedCompetitor(e.target.value)}
+                    displayEmpty
+                    fullWidth
+                    sx={{ marginBottom: 2, color: '#FFF', '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: 'white' } } }}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          bgcolor: '#2c2c2c',
+                          color: '#FFF',
+                        },
+                      },
+                    }}
+                  >
+                    <MenuItem value="" disabled>
+                      Select Competitor
                     </MenuItem>
-                  ))}
-                </Select>
+                    {marketData.competitors && marketData.competitors.map((competitor) => (
+                      <MenuItem key={competitor.name} value={competitor.name} sx={{ color: '#FFF' }}>
+                        {competitor.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                )}
                 <Button variant="contained" color="primary" fullWidth onClick={handleBet}>
                   Bet
                 </Button>
@@ -286,17 +455,28 @@ const MarketPage = () => {
             )}
             <Paper sx={{ width: '100%', padding: 2, marginBottom: 4, marginTop: 2, backgroundColor: '#2c2c2c', border: '1px solid white', boxShadow: '0 4px 8px rgba(255, 255, 255, 0.1)' }}>
               <Typography variant="h6" sx={{ marginBottom: 2, color: 'white', textAlign: 'center' }}>
-                Competitors and Likelihoods
+                {marketData.marketType === 'combination' ? 'Combinations and Likelihoods' : 'Competitors and Likelihoods'}
               </Typography>
               <List>
-                {competitorsWithLikelihoods.map((competitor) => (
-                  <ListItem key={competitor.name}>
-                    <ListItemText
-                      primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
-                      sx={{ color: '#FFF' }}
-                    />
-                  </ListItem>
-                ))}
+                {marketData.marketType === 'combination' ? (
+                  combinationsWithLikelihoods.map(({ combination, likelihood }) => (
+                    <ListItem key={combination}>
+                      <ListItemText
+                        primary={`${combination}: ${likelihood.toFixed(2)}%`}
+                        sx={{ color: '#FFF' }}
+                      />
+                    </ListItem>
+                  ))
+                ) : (
+                  competitorsWithLikelihoods.map((competitor) => (
+                    <ListItem key={competitor.name}>
+                      <ListItemText
+                        primary={`${competitor.name}: ${competitor.likelihood.toFixed(2)}%`}
+                        sx={{ color: '#FFF' }}
+                      />
+                    </ListItem>
+                  ))
+                )}
               </List>
             </Paper>
           </Grid>

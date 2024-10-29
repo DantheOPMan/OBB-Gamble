@@ -89,8 +89,8 @@ const updateUser = async (uid, discordUsername, obkUsername) => {
   return makeRequest(`/api/users/${uid}`, 'PUT', { discordUsername, obkUsername });
 };
 
-const createMarket = async (marketName, competitors) => {
-  return makeRequest('/api/markets', 'POST', { marketName, competitors });
+const createMarket = async (marketName, competitors, marketType = 'single', combinationSize = 1) => {
+  return makeRequest('/api/markets', 'POST', { marketName, competitors, marketType, combinationSize });
 };
 
 const getMarkets = async () => {
@@ -113,10 +113,19 @@ const getMarketById = async (marketId) => {
   return makeRequest(`/api/markets/${marketId}`, 'GET');
 };
 
-const placeBet = async (marketId, amount, competitorName) => {
+const placeBet = async (marketId, amount, competitorNames) => {
   const userId = auth.currentUser.uid;
+
+  let competitorName = '';
+  if (Array.isArray(competitorNames)) {
+    competitorName = competitorNames.join(',');
+  } else {
+    competitorName = competitorNames;
+  }
+
   return makeRequest(`/api/markets/bet/${marketId}`, 'POST', { userId, amount, competitorName });
 };
+
 
 const getBetTransactions = async (marketId) => {
   try {
