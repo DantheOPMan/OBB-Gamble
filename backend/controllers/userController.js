@@ -87,8 +87,11 @@ const getUserTransactions = async (req, res) => {
 const getUserStats = async (req, res) => {
   const { uid } = req.params;
 
-  // Ensure the user is authorized to access these stats
-  if (uid !== req.user.uid) {
+  console.log('Requested UID:', uid);
+  console.log('Authenticated UID:', req.user.uid);
+  console.log('User Role:', req.user.role);
+  
+  if (String(uid).trim() !== String(req.user.uid).trim() && req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Forbidden: Cannot access another user\'s data' });
   }
 
