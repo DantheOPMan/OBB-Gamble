@@ -34,6 +34,48 @@ const RoulettePage = () => {
     fetchUserBalance();
   }, []);
 
+  // Calculate total bets on a betting option
+  const getTotalBetAmount = (betType, betValue) => {
+    return bets.reduce((total, bet) => {
+      if (
+        bet.betType === betType &&
+        JSON.stringify(bet.betValue) === JSON.stringify(betValue)
+      ) {
+        return total + bet.betAmount;
+      }
+      return total;
+    }, 0);
+  };
+
+  // Render total bets on the table
+  const renderTotalBet = (betType, betValue) => {
+    const totalBetAmount = getTotalBetAmount(betType, betValue);
+    if (totalBetAmount > 0) {
+      return (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '5px',
+            left: '5px',
+            backgroundColor: 'rgba(0, 0, 255, 0.7)', // Semi-transparent blue
+            color: 'white',
+            borderRadius: '50%',
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            zIndex: 1,
+          }}
+        >
+          {totalBetAmount}
+        </Box>
+      );
+    }
+    return null;
+  };
+
   useEffect(() => {
     if (winningNumber !== null) {
       // Calculate rotation to stop at the winning number
@@ -48,7 +90,7 @@ const RoulettePage = () => {
       const index = numberPositions.indexOf(winningNumber);
       const degreePerNumber = 360 / 37;
       const randomSpins = 5; // Number of full spins before stopping
-      const stopAngle = randomSpins * 360 - index * degreePerNumber;
+      const stopAngle = randomSpins * 360 + index * degreePerNumber + (degreePerNumber / 2);
 
       setWheelRotation(stopAngle);
     }
@@ -167,29 +209,32 @@ const RoulettePage = () => {
       20, 14, 31, 9, 22, 18, 29, 7,
       28, 12, 35, 3, 26
     ]; // Standard European wheel sequence
-
+  
     return numberPositions.map((number, index) => {
       const angle = (360 / 37) * index;
       const isRed = [32, 19, 21, 25, 34, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3].includes(number);
       const isGreen = number === 0;
-
+  
       return (
         <Box
           key={number}
           sx={{
             position: 'absolute',
-            transform: `rotate(${angle}deg) translate(0, -130px)`,
+            transform: `rotate(${angle}deg) translate(0, -130px) rotate(${-angle}deg)`,
             transformOrigin: 'center center',
             color: isGreen ? '#388E3C' : isRed ? '#D32F2F' : '#424242',
             fontSize: '14px',
             fontWeight: 'bold',
+            textAlign: 'center',
+            width: '24px',
+            marginLeft: '-12px', // Half of width to center align
           }}
         >
           {number}
         </Box>
       );
     });
-  };
+  };  
   // Generate the roulette table
   const generateRouletteTable = () => {
     const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
@@ -204,11 +249,11 @@ const RoulettePage = () => {
     // Left column with 0
     cells.push(
       <Box
-        key="0"
+        key={`number-0`}
         sx={{
           position: 'absolute',
-          top: 0,
-          left: 0,
+          top: `0px`,
+          left: `0px`,
           width: `${cellWidth}px`,
           height: `${cellHeight * 3}px`,
           border: '1px solid white',
@@ -222,9 +267,10 @@ const RoulettePage = () => {
         onClick={() => handleBetClick('number', 0)}
       >
         0
-        {renderPlayerBet('number', 0)}
+        {renderTotalBet('number', 0)} {/* Display total bets */}
+        {renderPlayerBet('number', 0)} {/* Display player's own bet */}
       </Box>
-    );
+    );    
 
     // Numbers 1-36 in 12 columns and 3 rows
     for (let col = 0; col < 12; col++) {
@@ -480,10 +526,14 @@ const RoulettePage = () => {
   return (
     <Container maxWidth="lg">
       <Typography variant="h4">Roulette</Typography>
-      {timeRemaining > 0 ? (
+      {roundInfo === null ? (
+        <Typography variant="h6">No active round. Place a bet to start a new round.</Typography>
+      ) : bettingClosed ? (
+        <Typography variant="h6">Betting is closed</Typography>
+      ) : timeRemaining > 0 ? (
         <Typography variant="h6">Time remaining to place bets: {timeRemaining} seconds</Typography>
       ) : (
-        <Typography variant="h6">Betting is closed</Typography>
+        <Typography variant="h6">Waiting for outcome...</Typography>
       )}
       <Typography variant="h6">Your Balance: {userBalance.toFixed(2)} BP</Typography>
       {winningNumber !== null && (

@@ -211,79 +211,84 @@ const processPayouts = async (round) => {
 };
 
 // Handle placing a bet
+// Handle placing a bet
 const placeBet = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const { betAmount, betType, betValue } = req.body;
-    const userId = req.user.uid;
-
-    // If there's no active round, start a new round
-    if (!currentRound) {
-      startNewRound();
-
-      // Start the betting timeout to close betting before outcome
-      // Betting remains open until 10 seconds before the outcome
-      bettingTimeout = setTimeout(() => {
-        closeBetting();
-      }, 20000); // Adjust this duration as needed
-    }
-
-    if (!currentRound || !currentRound.isActive) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+  
+    try {
+      const { betAmount, betType, betValue } = req.body;
+      const userId = req.user.uid;
+  
+      // If there's no active round, start a new round
+      if (!currentRound) {
+        startNewRound();
+  
+        // Start the betting timeout to close betting before outcome
+        // Betting remains open until 10 seconds before the outcome
+        bettingTimeout = setTimeout(() => {
+          closeBetting();
+        }, 20000); // Adjust this duration as needed
+      }
+  
+      if (!currentRound || !currentRound.isActive) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: 'Betting is closed' });
+      }
+  
+      const user = await User.findOne({ uid: userId }).session(session);
+      if (!user) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ message: 'User not found' });
+      }
+  
+      if (user.bpBalance < betAmount || betAmount <= 0) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: 'Insufficient balance or invalid amount' });
+      }
+  
+      // Deduct the bet amount from user's balance
+      user.bpBalance -= betAmount;
+      await user.save({ session });
+  
+      // Store the username for convenience
+      const username = user.discordUsername || user.obkUsername || user.email;
+  
+      const bet = {
+        userId,
+        username,
+        betAmount,
+        betType,
+        betValue,
+      };
+  
+      // Atomically add the bet to the current round within the session
+      await RouletteRound.findOneAndUpdate(
+        { _id: currentRound._id },
+        { $push: { bets: bet } },
+        { session }
+      );
+  
+      await session.commitTransaction();
+      session.endSession();
+  
+      // Notify others about the new bet
+      ioInstance.emit('rouletteNewBet', {
+        roundId: currentRound.roundId,
+        bet,
+      });
+  
+      res.status(200).json({ message: 'Bet placed successfully' });
+    } catch (error) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({ message: 'Betting is closed' });
+      console.error('Error placing roulette bet:', error);
+      res.status(500).json({ message: error.message });
     }
-
-    const user = await User.findOne({ uid: userId }).session(session);
-    if (!user) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    if (user.bpBalance < betAmount || betAmount <= 0) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ message: 'Insufficient balance or invalid amount' });
-    }
-
-    // Deduct the bet amount from user's balance
-    user.bpBalance -= betAmount;
-    await user.save({ session });
-
-    // Store the username for convenience
-    const username = user.discordUsername || user.obkUsername || user.email;
-
-    const bet = {
-      userId,
-      username,
-      betAmount,
-      betType,
-      betValue,
-    };
-
-    currentRound.bets.push(bet);
-    await currentRound.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
-
-    // Notify others about the new bet
-    ioInstance.emit('rouletteNewBet', {
-      roundId: currentRound.roundId,
-      bet,
-    });
-
-    res.status(200).json({ message: 'Bet placed successfully' });
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error('Error placing roulette bet:', error);
-    res.status(500).json({ message: error.message });
-  }
-};
+  };  
 
 module.exports = {
   initializeRoulette,
