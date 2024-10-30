@@ -57,8 +57,12 @@ const getUser = async (uid) => {
   return makeRequest(`/api/users/${uid}`, 'GET');
 };
 
-const getUserStats = async (uid) => { // **New Function**
-  return makeRequest(`/api/users/${uid}/stats`, 'GET');
+const getUserStats = async (userId) => {
+  return makeRequest(`/api/users/${userId}/stats`, 'GET');
+};
+
+const fetchUserTransactions = async (userId) => {
+  return makeRequest(`/api/users/${userId}/transactions`, 'GET');
 };
 
 const requestDeposit = async (userId, amount, discordUsername, obkUsername) => {
@@ -126,7 +130,6 @@ const placeBet = async (marketId, amount, competitorNames) => {
   return makeRequest(`/api/markets/bet/${marketId}`, 'POST', { userId, amount, competitorName });
 };
 
-
 const getBetTransactions = async (marketId) => {
   try {
     return await makeRequest(`/api/markets/transactions/${marketId}`, 'GET');
@@ -154,10 +157,6 @@ const rejectTip = async (transactionId) => {
 
 const fetchUsers = async () => {
   return makeRequest('/api/users', 'GET');
-};
-
-const fetchUserTransactions = async (userId) => {
-  return makeRequest(`/api/users/${userId}/transactions`, 'GET');
 };
 
 const playPlinko = async (amount) => {
