@@ -1,6 +1,7 @@
 const Plinko = require('../models/plinkoModel');
 const User = require('../models/userModel');
-const Transaction = require('../models/transactionModel'); 
+const Transaction = require('../models/transactionModel');
+const mongoose = require('mongoose');
 
 const numBuckets = 15;
 const stdDev = 1.994;
@@ -8,9 +9,9 @@ const multipliers = [100, 20, 8, 4, 2, 0.2, 0.2, 0.2, 0.2, 0.2, 2, 4, 8, 20, 100
 
 // Helper function to generate a random number from a custom distribution
 function customDistribution() {
-    const u1 = Math.random();
-    const u2 = Math.random();
-    return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  const u1 = Math.random();
+  const u2 = Math.random();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
 
 // Function to run Plinko simulation
@@ -26,7 +27,9 @@ function runPlinkoSimulation(numSimulations) {
   }
 
   const probabilities = results.map(count => count / numSimulations);
-  const empiricalExpectedReturn = probabilities.reduce((sum, prob, index) => sum + prob * multipliers[index], 0).toFixed(3);
+  const empiricalExpectedReturn = probabilities
+    .reduce((sum, prob, index) => sum + prob * multipliers[index], 0)
+    .toFixed(3);
 
   console.log('Empirical Probabilities:', probabilities);
   console.log('Empirical Expected Return:', empiricalExpectedReturn);
@@ -37,25 +40,34 @@ runPlinkoSimulation(10000000);
 
 // Main function to play Plinko
 const playPlinko = async (req, res) => {
-  const { userId, amount } = req.body;
-
-  if (userId !== req.user.uid) {
-    return res.status(403).json({ message: 'Forbidden: Cannot perform this action for another user' });
-  }
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
   try {
-    const user = await User.findOne({ uid: userId });
+    const { userId, amount } = req.body;
+
+    if (userId !== req.user.uid) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json({ message: 'Forbidden: Cannot perform this action for another user' });
+    }
+
+    const user = await User.findOne({ uid: userId }).session(session);
     if (!user) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: 'User not found' });
     }
 
     if (user.bpBalance < amount || amount <= 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: 'Insufficient balance or invalid amount' });
     }
 
     // Deduct the amount from user balance
     user.bpBalance -= amount;
-    await user.save();
+    await user.save({ session });
 
     // Simulate the Plinko result using a custom distribution
     const mean = (numBuckets - 1) / 2; // Center bucket
@@ -63,30 +75,38 @@ const playPlinko = async (req, res) => {
     position = Math.max(0, Math.min(position, numBuckets - 1)); // Ensure position is within bounds
 
     const multiplier = multipliers[position];
-    const winnings = (amount * multiplier).toFixed(1); // Round winnings to 1 decimal place
+    const winnings = parseFloat((amount * multiplier).toFixed(1)); // Round winnings to 1 decimal place
 
     // Update user balance with winnings
-    user.bpBalance += parseFloat(winnings); // Convert back to number for accuracy
+    user.bpBalance += winnings; // Convert back to number for accuracy
 
     // Round the user balance to 1 decimal place
     user.bpBalance = parseFloat(user.bpBalance.toFixed(1));
-    
-    await user.save();
+
+    await user.save({ session });
 
     const newPlinkoResult = new Plinko({ userId, amount, result: winnings, position });
-    await newPlinkoResult.save();
+    await newPlinkoResult.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(200).json({ result: winnings, position, multiplier, message: 'Bet placed successfully' });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error('Error playing Plinko:', error.message);
     res.status(500).json({ message: error.message });
   }
 };
 
 const claimProfits = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    // Get all Plinko results
-    const results = await Plinko.find({});
+    // Get all Plinko results excluding previous admin claims
+    const results = await Plinko.find({ userId: { $ne: 'adminClaim' } }).session(session);
 
     // Calculate total wagered and total returned
     const totalWagered = results.reduce((sum, transaction) => sum + parseFloat(transaction.amount), 0);
@@ -94,6 +114,8 @@ const claimProfits = async (req, res) => {
     const netProfits = totalWagered - totalReturned;
 
     if (netProfits <= 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: 'No profits to claim' });
     }
 
@@ -102,8 +124,10 @@ const claimProfits = async (req, res) => {
     const netProfitsAfterBurn = netProfits - burnAmount;
 
     // Get all admin users
-    const adminUsers = await User.find({ role: 'admin' });
+    const adminUsers = await User.find({ role: 'admin' }).session(session);
     if (adminUsers.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: 'No admin users found to distribute profits' });
     }
     const adminProfitPerUser = netProfitsAfterBurn / adminUsers.length;
@@ -118,11 +142,11 @@ const claimProfits = async (req, res) => {
         competitorName: 'AdminProfit',
         status: 'approved',
         discordUsername: admin.discordUsername,
-        obkUsername: admin.obkUsername
+        obkUsername: admin.obkUsername,
       });
       admin.bpBalance += adminProfitPerUser;
-      await adminTransaction.save();
-      await admin.save();
+      await adminTransaction.save({ session });
+      await admin.save({ session });
     }
 
     // Burn transaction
@@ -133,9 +157,9 @@ const claimProfits = async (req, res) => {
       competitorName: 'Burn',
       status: 'approved',
       discordUsername: 'Burn',
-      obkUsername: 'Burn'
+      obkUsername: 'Burn',
     });
-    await burnTransaction.save();
+    await burnTransaction.save({ session });
 
     // Create Plinko transaction to subtract the claimed profits
     const plinkoTransaction = new Plinko({
@@ -144,10 +168,20 @@ const claimProfits = async (req, res) => {
       result: 0,
       position: 0,
     });
-    await plinkoTransaction.save();
+    await plinkoTransaction.save({ session });
 
-    res.status(200).json({ message: 'Profits claimed successfully', netProfits, burnAmount, netProfitsAfterBurn });
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({
+      message: 'Profits claimed successfully',
+      netProfits,
+      burnAmount,
+      netProfitsAfterBurn,
+    });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error('Error claiming profits:', error.message);
     res.status(500).json({ message: error.message });
   }

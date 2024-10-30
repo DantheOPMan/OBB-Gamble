@@ -83,7 +83,7 @@ const determineHandOutcome = (playerHand, dealerValue) => {
     return 'tie';
 };
 
-const finishDealerTurn = async (hand) => {
+const finishDealerTurn = async (hand, session) => {
     while (hand.dealerValue < 17) {
         const card = hand.deck.pop();
         hand.dealerHand.push(card);
@@ -92,27 +92,34 @@ const finishDealerTurn = async (hand) => {
 
     hand.status = 'completed';
     hand.dealerVisibleCards = [...hand.dealerHand];
-    await hand.save();
+    await hand.save({ session });
 };
 
 const createHand = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     const { initialBPCharge } = req.body;
 
     try {
         const userId = req.user._id;
-        const existingHand = await BlackjackHand.findOne({ userId, status: 'ongoing' });
+        const existingHand = await BlackjackHand.findOne({ userId, status: 'ongoing' }).session(session);
         if (existingHand) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: 'You already have an ongoing hand. Resolve it before starting a new one.' });
         }
 
-        const user = await User.findById(userId);
+        const user = await User.findById(userId).session(session);
         if (user.bpBalance < initialBPCharge) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: 'Insufficient BP balance to start a new hand.' });
         }
 
         // Deduct the initial BP charge from the user's balance
         user.bpBalance -= initialBPCharge;
-        await user.save();
+        await user.save({ session });
 
         const deck = createDeck();
         const initialPlayerHand = [deck.pop(), deck.pop()];
@@ -146,34 +153,47 @@ const createHand = async (req, res) => {
         if (status === 'player_blackjack') {
             const payout = initialBPCharge * 2.5;
             user.bpBalance += payout;
-            newHand.status.playerHands[0].payout += payout;
-            await user.save();
+            newHand.playerHands[0].payout = payout;
+            await user.save({ session });
         } else if (status === 'tie') {
             user.bpBalance += initialBPCharge;
-            newHand.status.playerHands[0].payout += initialBPCharge;
-            await user.save();
+            newHand.playerHands[0].payout = initialBPCharge;
+            await user.save({ session });
         } else if (status === 'dealer_blackjack') {
             newHand.dealerVisibleCards = [dealerHand[0], dealerHand[1]];
         }
 
-        await newHand.save();
+        await newHand.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
+
         res.status(201).json(filterHandData(newHand));
+
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         res.status(500).json({ message: error.message });
     }
 };
 
 const hit = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const { handId, handIndex } = req.params;
-        const hand = await BlackjackHand.findById(handId);
+        const hand = await BlackjackHand.findById(handId).session(session);
         if (!hand || hand.status !== 'ongoing') {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(404).json({ message: 'Hand not found or game already finished' });
         }
         verifyUserOwnership(hand, req.user._id);
 
         // Ensure the player is interacting with the current hand
         if (handIndex > 0 && hand.playerHands[handIndex - 1].status === 'ongoing') {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: 'You must complete the current hand before interacting with the next hand.' });
         }
 
@@ -181,20 +201,21 @@ const hit = async (req, res) => {
         hand.playerHands[handIndex].cards.push(card);
         hand.playerHands[handIndex].value = calculateHandValue(hand.playerHands[handIndex].cards);
 
-        // Check if the player hits 21
-        if (hand.playerHands[handIndex].value === 21) {
-            await hand.save();
-            return await stand(req, res);
-        } else if (hand.playerHands[handIndex].value > 21) {
-            hand.playerHands[handIndex].status = 'bust';
+        // Check if the player hits 21 or busts
+        if (hand.playerHands[handIndex].value >= 21) {
+            if (hand.playerHands[handIndex].value === 21) {
+                hand.playerHands[handIndex].status = 'stand';
+            } else {
+                hand.playerHands[handIndex].status = 'bust';
+            }
         }
 
         // Save the hand and check if all hands are done
-        await hand.save();
+        await hand.save({ session });
         const allHandsStandOrBust = hand.playerHands.every(h => h.status !== 'ongoing');
         if (allHandsStandOrBust) {
-            await finishDealerTurn(hand);
-            const user = await User.findById(req.user._id);
+            await finishDealerTurn(hand, session);
+            const user = await User.findById(req.user._id).session(session);
 
             hand.playerHands.forEach(playerHand => {
                 const outcome = determineHandOutcome(playerHand, hand.dealerValue);
@@ -213,26 +234,39 @@ const hit = async (req, res) => {
                 }
             });
 
-            await user.save();
+            await user.save({ session });
+            await hand.save({ session });
         }
 
+        await session.commitTransaction();
+        session.endSession();
+
         res.status(200).json(filterHandData(hand));
+
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         res.status(500).json({ message: error.message });
     }
 };
 
 const stand = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const { handId, handIndex } = req.params;
-        const hand = await BlackjackHand.findById(handId);
+        const hand = await BlackjackHand.findById(handId).session(session);
         if (!hand || hand.status !== 'ongoing') {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(404).json({ message: 'Hand not found or game already finished' });
         }
         verifyUserOwnership(hand, req.user._id);
 
         // Ensure the player is interacting with the current hand
         if (handIndex > 0 && hand.playerHands[handIndex - 1].status === 'ongoing') {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: 'You must complete the current hand before interacting with the next hand.' });
         }
 
@@ -240,8 +274,8 @@ const stand = async (req, res) => {
 
         const allHandsStandOrBust = hand.playerHands.every(h => h.status !== 'ongoing');
         if (allHandsStandOrBust) {
-            await finishDealerTurn(hand);
-            const user = await User.findById(req.user._id);
+            await finishDealerTurn(hand, session);
+            const user = await User.findById(req.user._id).session(session);
             hand.playerHands.forEach(playerHand => {
 
                 const outcome = determineHandOutcome(playerHand, hand.dealerValue);
@@ -259,39 +293,53 @@ const stand = async (req, res) => {
                     playerHand.payout = 0;
                 }
             });
-
-            await user.save();
+            await user.save({ session });
         }
-        await hand.save();
+        await hand.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
+
         res.status(200).json(filterHandData(hand));
+
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         res.status(500).json({ message: error.message });
     }
 };
 
 const doubleDown = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const { handId, handIndex } = req.params;
-        const hand = await BlackjackHand.findById(handId);
+        const hand = await BlackjackHand.findById(handId).session(session);
         if (!hand || hand.status !== 'ongoing') {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(404).json({ message: 'Hand not found or game already finished' });
         }
         verifyUserOwnership(hand, req.user._id);
 
-        const user = await User.findById(req.user._id);
+        const user = await User.findById(req.user._id).session(session);
         const playerHand = hand.playerHands[handIndex];
         if (playerHand.cards.length !== 2) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: 'Can only double down on a hand with exactly 2 cards.' });
         }
 
         const doubleBPCharge = playerHand.bpCharged;
         if (user.bpBalance < doubleBPCharge) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: 'Insufficient BP balance to double down.' });
         }
 
         // Deduct the double BP charge from the user's balance
         user.bpBalance -= doubleBPCharge;
-        await user.save();
+        await user.save({ session });
 
         const card = hand.deck.pop();
         playerHand.cards.push(card);
@@ -304,11 +352,12 @@ const doubleDown = async (req, res) => {
             playerHand.status = 'bust';
         }
 
-        await finishDealerTurn(hand);
+        await hand.save({ session });
 
         const allHandsStandOrBust = hand.playerHands.every(h => h.status !== 'ongoing');
         if (allHandsStandOrBust) {
-            const user = await User.findById(req.user._id);
+            await finishDealerTurn(hand, session);
+            const user = await User.findById(req.user._id).session(session);
 
             hand.playerHands.forEach(playerHand => {
                 const outcome = determineHandOutcome(playerHand, hand.dealerValue);
@@ -327,26 +376,35 @@ const doubleDown = async (req, res) => {
                 }
             });
 
-            await user.save();
+            await user.save({ session });
+            await hand.save({ session });
         }
 
-        await hand.save();
+        await session.commitTransaction();
+        session.endSession();
+
         res.status(200).json(filterHandData(hand));
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         res.status(500).json({ message: error.message });
     }
 };
 
 const split = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const { handId, handIndex } = req.params;
-        const hand = await BlackjackHand.findById(handId);
+        const hand = await BlackjackHand.findById(handId).session(session);
         if (!hand || hand.status !== 'ongoing') {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(404).json({ message: 'Hand not found or game already finished' });
         }
         verifyUserOwnership(hand, req.user._id);
 
-        const user = await User.findById(req.user._id);
+        const user = await User.findById(req.user._id).session(session);
         const playerHand = hand.playerHands[handIndex];
 
         // Check if the hand can be split
@@ -356,22 +414,28 @@ const split = async (req, res) => {
             !(playerHand.cards[0].value === playerHand.cards[1].value ||
                 (tenValues.includes(playerHand.cards[0].value) && tenValues.includes(playerHand.cards[1].value)))
         ) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: 'Cannot split this hand' });
         }
 
-        // Check if splitting will exceed the maximum number of hands (4)
+        // Check if splitting will exceed the maximum number of hands (8)
         if (hand.playerHands.length >= 8) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: 'Cannot split further, maximum number of hands reached.' });
         }
 
         const splitBPCharge = playerHand.bpCharged;
         if (user.bpBalance < splitBPCharge) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: 'Insufficient BP balance to split the hand.' });
         }
 
         // Deduct the split BP charge for the new hand
         user.bpBalance -= splitBPCharge;
-        await user.save();
+        await user.save({ session });
 
         const deck = hand.deck;
 
@@ -392,10 +456,15 @@ const split = async (req, res) => {
         newHand2.value = calculateHandValue(newHand2.cards);
 
         hand.playerHands.splice(handIndex, 1, newHand1, newHand2);
-        await hand.save();
+        await hand.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
 
         res.status(200).json(filterHandData(hand));
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         res.status(500).json({ message: error.message });
     }
 };
@@ -415,10 +484,12 @@ const getCurrentHand = async (req, res) => {
 };
 
 const claimBlackjackProfits = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         // Get all completed Blackjack hands
-        const hands = await BlackjackHand.find({ status: 'completed' });
-        const adminClaimHands = await BlackjackHand.find({ status: 'adminClaim' });
+        const hands = await BlackjackHand.find({ status: 'completed' }).session(session);
+        const adminClaimHands = await BlackjackHand.find({ status: 'adminClaim' }).session(session);
 
         // Calculate total wagered and total returned
         const totalWagered = hands.reduce((sum, hand) =>
@@ -429,6 +500,8 @@ const claimBlackjackProfits = async (req, res) => {
         console.log(netProfits)
 
         if (netProfits <= 0) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: 'No profits to claim' });
         }
 
@@ -437,8 +510,10 @@ const claimBlackjackProfits = async (req, res) => {
         const netProfitsAfterBurn = netProfits - burnAmount;
 
         // Get all admin users
-        const adminUsers = await User.find({ role: 'admin' });
+        const adminUsers = await User.find({ role: 'admin' }).session(session);
         if (adminUsers.length === 0) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: 'No admin users found to distribute profits' });
         }
         const adminProfitPerUser = netProfitsAfterBurn / adminUsers.length;
@@ -456,8 +531,8 @@ const claimBlackjackProfits = async (req, res) => {
                 obkUsername: admin.obkUsername
             });
             admin.bpBalance += adminProfitPerUser;
-            await adminTransaction.save();
-            await admin.save();
+            await adminTransaction.save({ session });
+            await admin.save({ session });
         }
 
         // Burn transaction
@@ -470,7 +545,7 @@ const claimBlackjackProfits = async (req, res) => {
             discordUsername: 'Burn',
             obkUsername: 'Burn'
         });
-        await burnTransaction.save();
+        await burnTransaction.save({ session });
 
         // Create Blackjack hand to record the claim
         const claimHand = new BlackjackHand({
@@ -488,7 +563,10 @@ const claimBlackjackProfits = async (req, res) => {
             status: 'adminClaim',
             dealerVisibleCards: []
         });
-        await claimHand.save();
+        await claimHand.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
 
         res.status(200).json({
             message: 'Profits claimed successfully',
@@ -498,6 +576,8 @@ const claimBlackjackProfits = async (req, res) => {
         });
     } catch (error) {
         console.error('Error claiming blackjack profits:', error.message);
+        await session.abortTransaction();
+        session.endSession();
         res.status(500).json({ message: error.message });
     }
 };
