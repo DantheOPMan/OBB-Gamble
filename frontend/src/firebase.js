@@ -220,6 +220,10 @@ const createPokerTable = async ({ tableName }) => {
   return makeRequest('/api/pokertables/create', 'POST', { tableName });
 };
 
+const placeRouletteBet = async (betType, betValue, betAmount) => {
+  return makeRequest('/api/roulette/place-bet', 'POST', { betType, betValue, betAmount });
+};
+
 export {
   auth,
   provider,
@@ -265,4 +269,5 @@ export {
   listPokerTables,
   joinPokerTable,
   createPokerTable,
+  placeRouletteBet,
 };

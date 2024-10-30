@@ -10,6 +10,8 @@ const plinkoRoutes = require('./routes/plinkoRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 const blackjackRoutes = require('./routes/blackjackRoutes');
 const { router: pokerTableRoutes, initializeSocket } = require('./routes/pokerTableRoutes');
+const rouletteRoutes = require('./routes/rouletteRoutes');
+const { initializeRoulette } = require('./controllers/rouletteController');
 
 const app = express();
 
@@ -34,6 +36,7 @@ app.use('/api/plinko', plinkoRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/blackjack', blackjackRoutes);
 app.use('/api/pokertables', pokerTableRoutes);
+app.use('/api/roulette', rouletteRoutes);
 
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -46,5 +49,6 @@ const io = socketIo(server, {
 });
 
 initializeSocket(io);
+initializeRoulette(io);
 
 module.exports = { app, server };

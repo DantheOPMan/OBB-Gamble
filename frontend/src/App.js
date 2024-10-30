@@ -18,6 +18,7 @@ import BPlinkoPage from './pages/BPlinkoPage';
 import BlackjackPage from './pages/BlackjackPage';
 import PokerPage from './pages/PokerPage';
 import PokerTablePage from './pages/PokerTablePage';
+import RoulettePage from './pages/RoulettePage';
 
 const App = () => {
   return (
@@ -43,6 +44,7 @@ const App = () => {
               <Route path="/casino/blackjack" element={<BlackjackPage />} />
               <Route path="/casino/poker" element={<PokerPage />} />
               <Route path="/casino/poker/table/:tableId" element={<PokerTablePage />} />
+              <Route path="/casino/roulette" element={<RoulettePage />} />
             </Routes>
           </div>
         </AuthenticatedRoute>
