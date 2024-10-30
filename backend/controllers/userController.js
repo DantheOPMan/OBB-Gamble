@@ -88,7 +88,7 @@ const getUserStats = async (req, res) => {
   const { uid } = req.params;
 
   // Ensure the user is authorized to access these stats
-  if (uid !== req.user.uid && req.user.role !== 'admin') {
+  if (uid !== req.user.uid) {
     return res.status(403).json({ message: 'Forbidden: Cannot access another user\'s data' });
   }
 
