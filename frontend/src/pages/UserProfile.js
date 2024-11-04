@@ -177,7 +177,7 @@ const UserProfile = () => {
           </Typography>
           <Divider sx={{ bgcolor: '#555', mb: 2 }} />
           <Grid container spacing={2}>
-            {/* Total Gambled */}
+            {/* Total Wagered */}
             <Grid item xs={12} sm={4}>
               <Box
                 sx={{
@@ -189,7 +189,7 @@ const UserProfile = () => {
               >
                 <CasinoIcon sx={{ fontSize: 40, color: '#ff7961' }} />
                 <Typography variant="subtitle1" sx={{ color: '#fff', mt: 1 }}>
-                  Total Gambled
+                  Total Wagered
                 </Typography>
                 <Typography variant="h6" sx={{ color: '#fff' }}>
                   {userStats ? userStats.totalGambled.toFixed(2) : <CircularProgress size={24} color="secondary" />}
@@ -261,7 +261,7 @@ const UserProfile = () => {
               </Box>
             </Grid>
 
-            {/* Total Bet in Markets */}
+            {/* Total Wagered in Markets */}
             <Grid item xs={12} sm={4}>
               <Box
                 sx={{
@@ -273,7 +273,7 @@ const UserProfile = () => {
               >
                 <TrendingDownIcon sx={{ fontSize: 40, color: '#ff7961' }} />
                 <Typography variant="subtitle1" sx={{ color: '#fff', mt: 1 }}>
-                  Bet in Markets
+                  Wagered in Markets
                 </Typography>
                 <Typography variant="h6" sx={{ color: '#fff' }}>
                   {userStats ? userStats.totalBetInMarkets.toFixed(2) : <CircularProgress size={24} color="secondary" />}
