@@ -281,7 +281,7 @@ const moveToNextPlayer = (io, tableId) => {
     const highestBet = Math.max(...table.players.map(p => p.bet));
 
     const activePlayers = table.players.filter(player => player.status === 'active');
-
+    
     const allActedOnce = activePlayers.every(player => player.hasActed);
     const allBetsEqual = activePlayers.every(player => player.bet === highestBet || player.status === 'all-in');
     if (allActedOnce && allBetsEqual) {
@@ -319,83 +319,105 @@ const handlePlayerAction = async (io, tableId, playerIndex, action, amount) => {
     let betAmount = 0;
     let handTransaction = null;
 
-    switch (action) {
-        case 'bet':
-            if (player.bet < highestBet) {
-                io.to(player.socketId).emit('error', 'Cannot bet, must call or raise if there is a higher bet.');
-                return;
-            }
-            betAmount = amount;
-            if (betAmount === player.bpBalance) {
-                player.status = 'all-in';
-            }
-            break;
-        case 'call':
-            if (player.bet >= highestBet) {
-                io.to(player.socketId).emit('error', 'Cannot call, you already have the highest bet.');
-                return;
-            }
-            const callAmount = highestBet - player.bet;
-            betAmount = Math.min(callAmount, player.bpBalance); // Set to the lesser of the call amount or player's balance
-            if (betAmount === player.bpBalance) {
-                player.status = 'all-in'; // Set to all-in if calling the entire balance
-            }
-            break;
-        case 'raise':
-            if (player.bet >= highestBet) {
-                io.to(player.socketId).emit('error', 'Cannot raise, you already have the highest bet.');
-                return;
-            }
-            const totalRaiseAmount = (highestBet - player.bet) + amount;
-            betAmount = Math.min(totalRaiseAmount, player.bpBalance); // Set to the lesser of the raise amount or player's balance
-            if (betAmount === player.bpBalance) {
-                player.status = 'all-in'; // Set to all-in if raising the entire balance
-            }
-            break;
-        case 'fold':
-            player.status = 'folded';
-            break;
-        case 'check':
-            if (player.bet < highestBet) {
-                io.to(player.socketId).emit('error', 'Cannot check, must call or raise.');
-                return;
-            }
-            break;
-        case 'all-in':
-            betAmount = player.bpBalance; // All-in bet amount is the player's entire balance
-            player.status = 'all-in';
-            break;
-        default:
-            console.error('Unknown action:', action);
-            return;
-    }
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    if (betAmount > 0) {
-        if (betAmount > player.bpBalance) {
-            io.to(player.socketId).emit('error', 'Insufficient bpBalance for this action.');
+    try {
+        switch (action) {
+            case 'bet':
+                if (player.bet < highestBet) {
+                    throw new Error('Cannot bet, must call or raise if there is a higher bet.');
+                }
+                betAmount = amount;
+                if (betAmount === player.bpBalance) {
+                    player.status = 'all-in';
+                }
+                break;
+            case 'call':
+                if (player.bet >= highestBet) {
+                    throw new Error('Cannot call, you already have the highest bet.');
+                }
+                const callAmount = highestBet - player.bet;
+                betAmount = Math.min(callAmount, player.bpBalance); // Set to the lesser of the call amount or player's balance
+                if (betAmount === player.bpBalance) {
+                    player.status = 'all-in'; // Set to all-in if calling the entire balance
+                }
+                break;
+            case 'raise':
+                if (player.bet >= highestBet) {
+                    throw new Error('Cannot raise, you already have the highest bet.');
+                }
+                const totalRaiseAmount = (highestBet - player.bet) + amount;
+                betAmount = Math.min(totalRaiseAmount, player.bpBalance); // Set to the lesser of the raise amount or player's balance
+                if (betAmount === player.bpBalance) {
+                    player.status = 'all-in'; // Set to all-in if raising the entire balance
+                }
+                break;
+            case 'fold':
+                player.status = 'folded';
+                break;
+            case 'check':
+                if (player.bet < highestBet) {
+                    throw new Error('Cannot check, must call or raise.');
+                }
+                break;
+            case 'all-in':
+                betAmount = player.bpBalance; // All-in bet amount is the player's entire balance
+                player.status = 'all-in';
+                break;
+            default:
+                throw new Error('Unknown action.');
+        }
+
+        if (betAmount > 0) {
+            if (betAmount > player.bpBalance) {
+                throw new Error('Insufficient BP balance for this action.');
+            }
+
+            player.bet += betAmount;
+            table.pot += betAmount;
+            player.bpBalance -= betAmount;
+
+            // Create a hand transaction record
+            handTransaction = {
+                uid: player.uid,
+                betAmount,
+                winnings: 0, // To be updated at the end of the round
+                adminFee: 0 // To be updated at the end of the round
+            };
+        }
+
+        player.hasActed = true;
+        table.lastActivity = new Date();
+
+        const activePlayers = table.players.filter(p => p.status === 'active' || p.status === 'all-in');
+        if (activePlayers.length <= 1) {
+            if (handTransaction) {
+                // Save the hand transaction to the database before ending the round
+                const pokerHandTransaction = new PokerHandTransaction({
+                    tableId,
+                    handNumber: table.handNumber || 0,
+                    players: [handTransaction],
+                    totalPot: table.pot,
+                    adminFeeTotal: 0 // Admin fee will be calculated at the end of the round
+                });
+                await pokerHandTransaction.save({ session });
+            }
+            await endRound(io, tableId, session); // Pass session to endRound
+            await session.commitTransaction();
+            session.endSession();
             return;
         }
 
-        player.bet += betAmount;
-        table.pot += betAmount;
-        player.bpBalance -= betAmount;
+        io.to(tableId).emit('gameState', getPublicGameState(tableId));
+        table.players.forEach(player => {
+            io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
+        });
 
-        // Create a hand transaction record
-        handTransaction = {
-            uid: player.uid,
-            betAmount,
-            winnings: 0, // To be updated at the end of the round
-            adminFee: 0 // To be updated at the end of the round
-        };
-    }
+        moveToNextPlayer(io, tableId);
 
-    player.hasActed = true;
-    table.lastActivity = new Date();
-
-    const activePlayers = table.players.filter(p => p.status === 'active' || p.status === 'all-in');
-    if (activePlayers.length <= 1) {
         if (handTransaction) {
-            // Save the hand transaction to the database before ending the round
+            // Save the hand transaction to the database after moving to the next player
             const pokerHandTransaction = new PokerHandTransaction({
                 tableId,
                 handNumber: table.handNumber || 0,
@@ -403,29 +425,16 @@ const handlePlayerAction = async (io, tableId, playerIndex, action, amount) => {
                 totalPot: table.pot,
                 adminFeeTotal: 0 // Admin fee will be calculated at the end of the round
             });
-            await pokerHandTransaction.save();
+            await pokerHandTransaction.save({ session });
         }
-        await endRound(io, tableId);
-        return;
-    }
 
-    io.to(tableId).emit('gameState', getPublicGameState(tableId));
-    table.players.forEach(player => {
-        io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
-    });
-
-    moveToNextPlayer(io, tableId);
-
-    if (handTransaction) {
-        // Save the hand transaction to the database after moving to the next player
-        const pokerHandTransaction = new PokerHandTransaction({
-            tableId,
-            handNumber: table.handNumber || 0,
-            players: [handTransaction],
-            totalPot: table.pot,
-            adminFeeTotal: 0 // Admin fee will be calculated at the end of the round
-        });
-        await pokerHandTransaction.save();
+        await session.commitTransaction();
+    } catch (error) {
+        await session.abortTransaction();
+        io.to(player.socketId).emit('error', { message: `Action failed: ${error.message}` });
+        console.error(`Error handling player action: ${error.message}`);
+    } finally {
+        session.endSession();
     }
 };
 
@@ -483,7 +492,7 @@ const resetTableState = (table) => {
     });
 };
 
-const endRound = async (io, tableId) => {
+const endRound = async (io, tableId, parentSession = null) => {
     const table = gameState[tableId];
 
     if (!table) {
@@ -496,7 +505,7 @@ const endRound = async (io, tableId) => {
 
     let payouts = {};
     let totalPot = table.pot;
-    let adminFeeTotal = Math.ceil(totalPot * 0); // Admin fee is 0.5% of the pot, rounded up
+    let adminFeeTotal = Math.ceil(totalPot * 0.005); // Admin fee is 0.5% of the pot, rounded up
 
     // Ensure that adminFeeTotal is a valid number
     if (isNaN(adminFeeTotal) || adminFeeTotal < 0) {
@@ -507,160 +516,169 @@ const endRound = async (io, tableId) => {
     // Subtract the admin fee from the total pot before any calculations
     totalPot -= adminFeeTotal;
 
-    if (activePlayers.length === 1) {
-        const winner = activePlayers[0];
-        payouts[winner.uid] = {
-            winnings: totalPot,
-            hand: winner.hand,
-            handDescription: 'Last player remaining'
-        };
-    } else {
-        activePlayers.sort((a, b) => a.bet - b.bet);
-        
-        let pots = [];
-        let previousBet = 0;
-        
-        for (let i = 0; i < activePlayers.length; i++) {
-            const player = activePlayers[i];
-            const currentBet = player.bet;
-            const betDifference = currentBet - previousBet;
-            
-            if (betDifference > 0) {
-                const potSize = betDifference * (activePlayers.length - i);
-                pots.push({
-                    amount: potSize,
-                    eligiblePlayers: activePlayers.slice(i)
-                });
-            }
-            
-            previousBet = currentBet;
-        }
-        
-        // Adjust pot sizes to account for admin fee
-        const totalPotSize = pots.reduce((sum, pot) => sum + pot.amount, 0);
-        let remainingAdminFee = adminFeeTotal;
-        
-        pots = pots.map((pot, index) => {
-            const potRatio = pot.amount / totalPotSize;
-            let potAdminFee = index === pots.length - 1 ? remainingAdminFee : Math.floor(adminFeeTotal * potRatio);
-            remainingAdminFee -= potAdminFee;
-            return {
-                ...pot,
-                amount: pot.amount - potAdminFee
+    // Start a new session if not provided
+    const session = parentSession || await mongoose.startSession();
+    if (!parentSession) session.startTransaction();
+
+    try {
+        if (activePlayers.length === 1) {
+            const winner = activePlayers[0];
+            payouts[winner.uid] = {
+                winnings: totalPot,
+                hand: winner.hand,
+                handDescription: 'Last player remaining'
             };
-        });
-        
-        for (const pot of pots) {
-            const winners = determineWinningHand(pot.eligiblePlayers, table.boardCards);
-            const winShare = Math.floor(pot.amount / winners.length);
-            let remainder = pot.amount % winners.length;
-            
-            winners.forEach((winner) => {
-                if (!payouts[winner.uid]) {
-                    payouts[winner.uid] = {
-                        winnings: 0,
-                        hand: winner.hand,
-                        handDescription: winner.handResult.handName
-                    };
-                }
-                const share = winShare + (remainder > 0 ? 1 : 0);
-                payouts[winner.uid].winnings += share;
-                remainder--;
-            });
-        }
-    }
-    
-    const handTransactions = [];
-
-    const adminUsers = await User.find({ role: 'admin' });
-    let remainingAdminFee = adminFeeTotal;
-    
-    for (let i = 0; i < adminUsers.length; i++) {
-        const adminUser = adminUsers[i];
-        const adminFeeShare = i === adminUsers.length - 1 ? remainingAdminFee : adminFeeTotal / adminUsers.length;
-        remainingAdminFee -= adminFeeShare;
-        
-        await User.findOneAndUpdate(
-            { uid: adminUser.uid },
-            { $inc: { bpBalance: adminFeeShare } }
-        );
-    }
-
-    for (const player of allHandParticipants) {
-        if (payouts[player.uid]) {
-            player.bpBalance += payouts[player.uid].winnings;
-        }
-    
-        const betAmount = player.bet;
-        const winnings = payouts[player.uid] ? payouts[player.uid].winnings : 0;
-    
-        handTransactions.push({
-            uid: player.uid,
-            betAmount,
-            winnings,
-            adminFee: Math.ceil((betAmount / table.pot) * adminFeeTotal)
-        });
-
-        if (player.pendingRemoval || player.status === 'left' || (player.status === 'all-in' && player.bpBalance === 0)) {
-            player.status = 'left';
         } else {
-            player.bet = 0;
-            player.status = player.status === 'all-in' ? 'active' : player.status;
-            player.hasActed = false;
-            player.hand = [];
-        }
-    }
+            activePlayers.sort((a, b) => a.bet - b.bet);
 
+            let pots = [];
+            let previousBet = 0;
 
-    const pokerHandTransaction = new PokerHandTransaction({
-        tableId,
-        handNumber: table.handNumber || 0,
-        players: handTransactions,
-        totalPot: table.pot,
-        adminFeeTotal
-    });
+            for (let i = 0; i < activePlayers.length; i++) {
+                const player = activePlayers[i];
+                const currentBet = player.bet;
+                const betDifference = currentBet - previousBet;
 
-    await pokerHandTransaction.save();
-
-    table.pot = 0;
-    table.boardCards = [];
-    table.stage = 'pre-flop';
-
-    for (const player of table.players) {
-        if (player.status === 'left' || player.pendingRemoval || player.bpBalance <= 0) {
-            try {
-                // Create a refund transaction
-                if (player.bpBalance > 0) {
-                    await createTransaction({
-                        userId: player.uid,
-                        amount: player.bpBalance,
-                        discordUsername: 'Poker',
-                        obkUsername: 'Poker',
-                        status: 'approved',
+                if (betDifference > 0) {
+                    const potSize = betDifference * (activePlayers.length - i);
+                    pots.push({
+                        amount: potSize,
+                        eligiblePlayers: activePlayers.slice(i)
                     });
                 }
 
-                // Update user's balance in the database
-                const user = await User.findOneAndUpdate(
-                    { uid: player.uid },
-                    { $inc: { bpBalance: player.bpBalance } },
-                    { new: true }
-                );
+                previousBet = currentBet;
+            }
 
-                if (user) {
-                    //console.log(`Updated balance for player ${player.uid}. New balance: ${user.bpBalance}`); important
-                } else {
-                    //console.log(`User not found for player ${player.uid} when processing leave`); important
-                }
-            } catch (error) {
-                console.error(`Error processing leave for player ${player.uid}:`, error);
+            // Adjust pot sizes to account for admin fee
+            const totalPotSize = pots.reduce((sum, pot) => sum + pot.amount, 0);
+            let remainingAdminFee = adminFeeTotal;
+
+            pots = pots.map((pot, index) => {
+                const potRatio = pot.amount / totalPotSize;
+                let potAdminFee = index === pots.length - 1 ? remainingAdminFee : Math.floor(adminFeeTotal * potRatio);
+                remainingAdminFee -= potAdminFee;
+                return {
+                    ...pot,
+                    amount: pot.amount - potAdminFee
+                };
+            });
+
+            for (const pot of pots) {
+                const winners = determineWinningHand(pot.eligiblePlayers, table.boardCards);
+                const winShare = Math.floor(pot.amount / winners.length);
+                let remainder = pot.amount % winners.length;
+
+                winners.forEach((winner) => {
+                    if (!payouts[winner.uid]) {
+                        payouts[winner.uid] = {
+                            winnings: 0,
+                            hand: winner.hand,
+                            handDescription: winner.handResult.handName
+                        };
+                    }
+                    const share = winShare + (remainder > 0 ? 1 : 0);
+                    payouts[winner.uid].winnings += share;
+                    remainder--;
+                });
             }
         }
-    }
 
-    table.players = table.players.filter(player => player.status !== 'left' && !player.pendingRemoval);
+        const handTransactions = [];
 
-    try {
+        const adminUsers = await User.find({ role: 'admin' }).session(session);
+        let remainingAdminFee = adminFeeTotal;
+
+        for (let i = 0; i < adminUsers.length; i++) {
+            const adminUser = adminUsers[i];
+            const adminFeeShare = i === adminUsers.length - 1 ? remainingAdminFee : Math.floor(adminFeeTotal / adminUsers.length);
+            remainingAdminFee -= adminFeeShare;
+
+            await User.findOneAndUpdate(
+                { uid: adminUser.uid },
+                { $inc: { bpBalance: adminFeeShare } },
+                { session }
+            );
+        }
+
+        for (const player of allHandParticipants) {
+            if (payouts[player.uid]) {
+                await User.findOneAndUpdate(
+                    { uid: player.uid },
+                    { $inc: { bpBalance: payouts[player.uid].winnings } },
+                    { session }
+                );
+            }
+
+            const betAmount = player.bet;
+            const winnings = payouts[player.uid] ? payouts[player.uid].winnings : 0;
+
+            handTransactions.push({
+                uid: player.uid,
+                betAmount,
+                winnings,
+                adminFee: Math.ceil((betAmount / table.pot) * adminFeeTotal)
+            });
+
+            if (player.pendingRemoval || player.status === 'left' || (player.status === 'all-in' && player.bpBalance === 0)) {
+                player.status = 'left';
+            } else {
+                player.bet = 0;
+                player.status = player.status === 'all-in' ? 'active' : player.status;
+                player.hasActed = false;
+                player.hand = [];
+            }
+        }
+
+        const pokerHandTransaction = new PokerHandTransaction({
+            tableId,
+            handNumber: table.handNumber || 0,
+            players: handTransactions,
+            totalPot: table.pot,
+            adminFeeTotal
+        });
+
+        await pokerHandTransaction.save({ session });
+
+        table.pot = 0;
+        table.boardCards = [];
+        table.stage = 'pre-flop';
+
+        for (const player of table.players) {
+            if (player.status === 'left' || player.pendingRemoval || player.bpBalance <= 0) {
+                try {
+                    // Create a refund transaction
+                    if (player.bpBalance > 0) {
+                        await createTransaction({
+                            userId: player.uid,
+                            amount: player.bpBalance,
+                            discordUsername: 'Poker',
+                            obkUsername: 'Poker',
+                            status: 'approved',
+                        }, session);
+
+                        await User.findOneAndUpdate(
+                            { uid: player.uid },
+                            { $inc: { bpBalance: player.bpBalance } },
+                            { session }
+                        );
+                    }
+
+                    // Update user's balance in the database
+                    await User.findOneAndUpdate(
+                        { uid: player.uid },
+                        { $inc: { bpBalance: player.bpBalance } },
+                        { new: true, session }
+                    );
+                } catch (error) {
+                    console.error(`Error processing leave for player ${player.uid}:`, error);
+                    throw error;
+                }
+            }
+        }
+
+        table.players = table.players.filter(player => player.status !== 'left' && !player.pendingRemoval);
+
         const updateData = {
             players: table.players.map(player => ({
                 uid: player.uid,
@@ -674,7 +692,6 @@ const endRound = async (io, tableId) => {
             })),
             pot: table.pot,
             currentPlayerIndex: table.currentPlayerIndex,
-            remainingTime: table.remainingTime,
             boardCards: table.boardCards,
             stage: table.stage,
             bigBlind: table.bigBlind,
@@ -685,29 +702,39 @@ const endRound = async (io, tableId) => {
             lastActivity: new Date()
         };
 
-        await PokerTable.findByIdAndUpdate(tableId, updateData, { new: true });
-        //console.log(`PokerTable ${tableId} state saved to database after hand ${table.handNumber}`);
+        await PokerTable.findByIdAndUpdate(tableId, updateData, { new: true, session });
+
+        table.gameInProgress = false;
+        table.currentPlayerIndex = -1; // Set to -1 to indicate no active player
+
+        io.to(tableId).emit('gameState', getPublicGameState(tableId, null));
+        io.to(tableId).emit('roundEnd', {
+            payouts: Object.entries(payouts).map(([uid, data]) => {
+                const player = allHandParticipants.find(p => p.uid === uid);
+                return {
+                    obkUsername: player ? player.obkUsername : 'Unknown Player',
+                    winnings: data.winnings,
+                    hand: data.hand,
+                    handDescription: data.handDescription
+                };
+            })
+        });
+
+        handleAFKPlayers(io, tableId, session);
+
+        await session.commitTransaction();
     } catch (error) {
-        //console.error(`Error saving PokerTable ${tableId} state to database:`, error);
+        if (!parentSession) {
+            await session.abortTransaction();
+            session.endSession();
+        }
+        console.error(`Error ending round: ${error.message}`);
+        throw error;
+    } finally {
+        if (!parentSession) {
+            session.endSession();
+        }
     }
-
-    table.gameInProgress = false;
-    table.currentPlayerIndex = -1; // Set to -1 to indicate no active player
-
-    io.to(tableId).emit('gameState', getPublicGameState(tableId, null));
-    io.to(tableId).emit('roundEnd', {
-        payouts: Object.entries(payouts).map(([uid, data]) => {
-            const player = allHandParticipants.find(p => p.uid === uid);
-            return {
-                obkUsername: player ? player.obkUsername : 'Unknown Player',
-                winnings: data.winnings,
-                hand: data.hand,
-                handDescription: data.handDescription
-            };
-        })
-    });
-    
-    handleAFKPlayers(io, tableId);
 
     setTimeout(() => {
         const remainingPlayers = table.players.filter(player => player.status !== 'left');
@@ -783,6 +810,8 @@ const dealerAction = async (io, tableId) => {
 };
 
 const playerJoin = async (io, socket, userId, tableId, buyInAmount) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         if (!mongoose.Types.ObjectId.isValid(tableId)) {
             throw new Error('Invalid table ID');
@@ -791,20 +820,20 @@ const playerJoin = async (io, socket, userId, tableId, buyInAmount) => {
         if (isNaN(buyInAmount) || buyInAmount < 0) {
             socket.emit('error', { message: 'Invalid buy-in amount.', details: 'Buy-in amount must be a positive number.' });
             //console.log(buyInAmount);
-            return;
+            throw new Error('Invalid buy-in amount');
         }
 
         let table = gameState[tableId];
 
-        const user = await User.findOne({ uid: userId });
+        const user = await User.findOne({ uid: userId }).session(session);
         if (!user) {
             socket.emit('error', { message: 'User not found.', details: '' });
-            return;
+            throw new Error('User not found');
         }
 
         if (user.bpBalance < buyInAmount) {
             socket.emit('error', { message: 'Insufficient BP balance or invalid buy-in amount.', details: '' });
-            return;
+            throw new Error('Insufficient BP balance');
         }
 
         try {
@@ -814,21 +843,21 @@ const playerJoin = async (io, socket, userId, tableId, buyInAmount) => {
                 discordUsername: 'Poker',
                 obkUsername: 'Poker',
                 status: 'approved',
-            });
+            }, session);
 
             user.bpBalance -= buyInAmount;
-            await user.save();
+            await user.save({ session });
         } catch (transactionError) {
             //console.error('Failed to create transaction:', transactionError);
             socket.emit('error', { message: 'Failed to process buy-in.', details: 'Please try again.' });
-            return;
+            throw new Error('Failed to process buy-in');
         }
 
         if (!table) {
-            const dbTable = await PokerTable.findById(tableId).populate('players');
+            const dbTable = await PokerTable.findById(tableId).populate('players').session(session);
             if (!dbTable) {
                 socket.emit('error', { message: 'Table not found.', details: '' });
-                return;
+                throw new Error('Table not found');
             }
 
             gameState[tableId] = {
@@ -867,7 +896,7 @@ const playerJoin = async (io, socket, userId, tableId, buyInAmount) => {
         } else {
             if (buyInAmount <= 0) {
                 socket.emit('error', { message: 'Invalid buy-in amount. Cannot join with 0 BP.', details: '' });
-                return;
+                throw new Error('Invalid buy-in amount');
             }
             const isHandInProgress = table.gameInProgress;
             table.players.push({
@@ -897,9 +926,13 @@ const playerJoin = async (io, socket, userId, tableId, buyInAmount) => {
                 scheduleGameStart(io, tableId);
             }
         }
+
+        await session.commitTransaction();
     } catch (error) {
+        await session.abortTransaction();
         console.error('Error joining player:', error.message);
-        socket.emit('error', { message: 'Failed to join table.', details: error.message });
+    } finally {
+        session.endSession();
     }
 };
 
@@ -942,107 +975,136 @@ const playerLeave = async (io, socketId, tableId) => {
         //console.log(`Attempt to leave non-existent table: ${tableId}`);
         return; 
     }
+
     const playerIndex = table.players.findIndex(player => player.socketId === socketId);
 
     if (playerIndex !== -1) {
         const player = table.players[playerIndex];
-
-        // Check if no hand is currently going on (pre-flop stage with no active players)
-        const noActiveHand = table.stage === 'pre-flop' && table.players.every(p => p.bet === 0 && p.hand.length === 0);
-
         const amountToReturn = player.bpBalance;
 
-        if (noActiveHand) {
-            table.players.splice(playerIndex, 1); // Remove player from the table
-            try {
-                await createTransaction({
-                    userId: player.uid,
-                    amount: amountToReturn,
-                    discordUsername: 'Poker',
-                    obkUsername: 'Poker',
-                    status: 'approved',
-                });
-    
-                const user = await User.findOne({ uid: player.uid });
-                if (user) {
-                    user.bpBalance += amountToReturn;
-                    await user.save();
-                    //console.log(`Player ${player.uid} left the table. Returned ${amountToReturn} BP. New balance: ${user.bpBalance}`);
-                } else {
-                    //console.log(`User not found for player ${player.uid} when leaving table`);
-                }
-            }catch{
-                //console.error(`Error processing leave transaction for player ${player.uid}:`, error);
-            }
-            if (table.players.length < 2) {
-                resetTableState(table);
-            } else {
-                adjustBlinds(table); 
-            }
-        } else {
-            if (player.status === 'all-in') {
-                player.pendingRemoval = true;
-            } else {
-                player.status = 'left';
-            }
-            //console.log(`Player ${player.uid} marked as left. Will return ${amountToReturn} BP at the end of the hand.`);
-        }
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
-        io.to(tableId).emit('gameState', getPublicGameState(tableId));
-        table.players.forEach(player => {
-            io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
-        });
-    }
-};
-
-const handleAFKPlayers = async (io, tableId) => {
-    const table = gameState[tableId];
-    const afkPlayers = table.players.filter(player => player.status === 'left');
-
-    for (const player of afkPlayers) {
-        const amountToReturn = player.bpBalance;
-        
         try {
-            if (amountToReturn > 0) {
+            // Check if no hand is currently going on (pre-flop stage with no active players)
+            const noActiveHand = table.stage === 'pre-flop' && table.players.every(p => p.bet === 0 && p.hand.length === 0);
+
+            if (noActiveHand) {
+                table.players.splice(playerIndex, 1); // Remove player from the table
+
                 await createTransaction({
                     userId: player.uid,
                     amount: amountToReturn,
                     discordUsername: 'Poker',
                     obkUsername: 'Poker',
                     status: 'approved',
-                });
+                }, session);
 
                 const user = await User.findOneAndUpdate(
                     { uid: player.uid },
                     { $inc: { bpBalance: amountToReturn } },
-                    { new: true }
+                    { new: true, session }
                 );
 
-                if (user) {
-                    //console.log(`Refunded ${amountToReturn} BP to player ${player.uid}. New balance: ${user.bpBalance}`);
-                } else {
-                    //console.log(`User not found for player ${player.uid} during handleAFKPlayers`);
+                if (!user) {
+                    throw new Error(`User not found for player ${player.uid} when processing leave.`);
                 }
+
+                if (table.players.length < 2) {
+                    resetTableState(table);
+                } else {
+                    adjustBlinds(table); 
+                }
+            } else {
+                if (player.status === 'all-in') {
+                    player.pendingRemoval = true;
+                } else {
+                    player.status = 'left';
+                }
+                // Player will be removed at the end of the hand
             }
+
+            io.to(tableId).emit('gameState', getPublicGameState(tableId));
+            table.players.forEach(player => {
+                io.to(player.socketId).emit('gameState', getPublicGameState(tableId, player.uid));
+            });
+
+            await session.commitTransaction();
         } catch (error) {
-            console.error(`Error processing refund for player ${player.uid}:`, error);
+            await session.abortTransaction();
+            console.error(`Error processing player leave: ${error.message}`);
+        } finally {
+            session.endSession();
+        }
+    }
+};
+
+const handleAFKPlayers = async (io, tableId, session = null) => {
+    const table = gameState[tableId];
+    const afkPlayers = table.players.filter(player => player.status === 'left');
+
+    const localSession = session || await mongoose.startSession();
+    if (!session) localSession.startTransaction();
+
+    try {
+        for (const player of afkPlayers) {
+            const amountToReturn = player.bpBalance;
+            
+            try {
+                if (amountToReturn > 0) {
+                    await createTransaction({
+                        userId: player.uid,
+                        amount: amountToReturn,
+                        discordUsername: 'Poker',
+                        obkUsername: 'Poker',
+                        status: 'approved',
+                    }, session || localSession);
+
+                    const user = await User.findOneAndUpdate(
+                        { uid: player.uid },
+                        { $inc: { bpBalance: amountToReturn } },
+                        { session: session || localSession }
+                    );
+
+                    if (user) {
+                        //console.log(`Refunded ${amountToReturn} BP to player ${player.uid}. New balance: ${user.bpBalance}`);
+                    } else {
+                        //console.log(`User not found for player ${player.uid} during handleAFKPlayers`);
+                    }
+                }
+            } catch (error) {
+                console.error(`Error processing refund for player ${player.uid}:`, error);
+            }
+
+            table.players = table.players.filter(p => p.socketId !== player.socketId);
         }
 
-        table.players = table.players.filter(p => p.socketId !== player.socketId);
+        if (table.players.length >= 2) {
+            adjustBlinds(table);
+        } else {
+            resetTableState(table);
+        }
+
+        await PokerTable.findByIdAndUpdate(tableId, { players: table.players }, { session: session || localSession });
+
+        io.to(tableId).emit('gameState', getPublicGameState(tableId));
+    } catch (error) {
+        console.error(`Error handling AFK players: ${error.message}`);
+        if (!session) {
+            await localSession.abortTransaction();
+        }
+        throw error;
+    } finally {
+        if (!session) {
+            await localSession.commitTransaction();
+            localSession.endSession();
+        }
     }
-
-    if (table.players.length >= 2) {
-        adjustBlinds(table);
-    } else {
-        resetTableState(table);
-    }
-
-    await PokerTable.findByIdAndUpdate(tableId, { players: table.players });
-
-    io.to(tableId).emit('gameState', getPublicGameState(tableId));
 };
 
 const spectatorJoin = async (io, socket, tableId) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         if (!mongoose.Types.ObjectId.isValid(tableId)) {
             throw new Error('Invalid table ID');
@@ -1051,10 +1113,10 @@ const spectatorJoin = async (io, socket, tableId) => {
         let table = gameState[tableId];
 
         if (!table) {
-            const dbTable = await PokerTable.findById(tableId).populate('players');
+            const dbTable = await PokerTable.findById(tableId).populate('players').session(session);
             if (!dbTable) {
                 socket.emit('error', 'Table not found.');
-                return;
+                throw new Error('Table not found');
             }
 
             gameState[tableId] = {
@@ -1065,18 +1127,19 @@ const spectatorJoin = async (io, socket, tableId) => {
                     status: 'active',
                     bet: 0,
                     obkUsername: player.obkUsername,
+                    bpBalance: player.bpBalance,
                 })),
                 spectators: [],
-                pot: 0,
-                currentPlayerIndex: 0,
-                remainingTime: 30,
-                boardCards: [],
-                stage: 'pre-flop',
+                pot: dbTable.pot,
+                currentPlayerIndex: dbTable.currentPlayerIndex,
+                remainingTime: dbTable.remainingTime,
+                boardCards: dbTable.boardCards,
+                stage: dbTable.stage,
                 bigBlind: dbTable.bigBlind,
                 smallBlind: dbTable.smallBlind,
                 smallBlindIndex: dbTable.smallBlindIndex,
                 bigBlindIndex: dbTable.bigBlindIndex,
-                lastActivity: new Date(),
+                lastActivity: dbTable.lastActivity
             };
             table = gameState[tableId];
         }
@@ -1096,17 +1159,39 @@ const spectatorJoin = async (io, socket, tableId) => {
         socket.join(tableId);
         socket.emit('gameState', getPublicGameState(tableId));
 
+        await session.commitTransaction();
     } catch (error) {
+        await session.abortTransaction();
         console.error('Error joining spectator:', error.message);
         socket.emit('error', 'An error occurred while joining as a spectator.');
+    } finally {
+        session.endSession();
     }
 };
 
-const spectatorLeave = (io, socketId, tableId) => {
-    const table = gameState[tableId];
-    table.spectators = table.spectators.filter(spectator => spectator.socketId !== socketId);
+const spectatorLeave = async (io, socketId, tableId) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const table = gameState[tableId];
+        if (!table) {
+            //console.log(`Attempt to leave non-existent table: ${tableId}`);
+            throw new Error('Table not found');
+        }
 
-    io.to(tableId).emit('gameState', getPublicGameState(tableId));
+        table.spectators = table.spectators.filter(spectator => spectator.socketId !== socketId);
+
+        io.to(tableId).emit('gameState', getPublicGameState(tableId));
+
+        await PokerTable.findByIdAndUpdate(tableId, { spectators: table.spectators }, { session });
+
+        await session.commitTransaction();
+    } catch (error) {
+        await session.abortTransaction();
+        console.error('Error leaving spectator:', error.message);
+    } finally {
+        session.endSession();
+    }
 };
 
 const getPublicGameState = (tableId, userId) => {
@@ -1141,6 +1226,8 @@ const cleanupInactiveTables = async (io) => {
 
     try {
         const inactiveTables = await PokerTable.find({ lastActivity: { $lt: passedTime } });
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
         for (const table of inactiveTables) {
             const tableId = table._id.toString();
@@ -1151,14 +1238,17 @@ const cleanupInactiveTables = async (io) => {
             }
 
             //console.log(`Cleaning up inactive table: ${table.name} (${tableId})`);
-            await cleanupTable(tableId, io);
+            await cleanupTable(tableId, io, session);
         }
+
+        await session.commitTransaction();
+        session.endSession();
     } catch (err) {
         console.error('Failed to clean up inactive tables:', err);
     }
 };
 
-const createTransaction = async (transactionData) => {
+const createTransaction = async (transactionData, session = null) => {
     try {
         // Validate required fields
         if (!transactionData.userId || !transactionData.amount || !transactionData.discordUsername || !transactionData.obkUsername) {
@@ -1182,7 +1272,7 @@ const createTransaction = async (transactionData) => {
             status: transactionData.status || 'approved', // Default to 'approved' if not provided
         });
 
-        await transaction.save();
+        await transaction.save({ session });
         //console.log('Transaction created successfully:', transaction);
         return transaction;
     } catch (error) {
@@ -1191,7 +1281,7 @@ const createTransaction = async (transactionData) => {
     }
 };
 
-const cleanupTable = async (tableId, io) => {
+const cleanupTable = async (tableId, io, session = null) => {
     const table = gameState[tableId];
     if (!table) {
         //console.log(`Table ${tableId} not found in gameState during cleanup.`);
@@ -1215,13 +1305,13 @@ const cleanupTable = async (tableId, io) => {
                     obkUsername: 'Poker',
                     status: 'approved',
                 });
-                await refundTransaction.save();
+                await refundTransaction.save({ session });
 
                 // Update user's balance in the database
-                const user = await User.findOne({ uid: player.uid });
+                const user = await User.findOne({ uid: player.uid }).session(session);
                 if (user) {
                     user.bpBalance += player.bpBalance;
-                    await user.save();
+                    await user.save({ session });
                     //console.log(`Refunded ${player.bpBalance} BP to player ${player.uid}. New balance: ${user.bpBalance}`);
                 } else {
                     //console.log(`User not found for player ${player.uid} during table cleanup`);
@@ -1247,7 +1337,7 @@ const cleanupTable = async (tableId, io) => {
 
     // Delete the table from the database
     try {
-        await PokerTable.findByIdAndDelete(tableId);
+        await PokerTable.findByIdAndDelete(tableId).session(session);
         //console.log(`Table ${tableId} has been deleted from the database.`);
     } catch (error) {
         console.error(`Error deleting poker table ${tableId} from database:`, error);
@@ -1285,9 +1375,9 @@ const setupPokerController = (io) => {
             }
         });
 
-        socket.on('playerLeave', ({ tableId }) => {
+        socket.on('playerLeave', async ({ tableId }) => { // Made async for consistency
             try {
-                playerLeave(io, socket.id, tableId);
+                await playerLeave(io, socket.id, tableId);
             } catch (error) {
                 console.error('Error handling playerLeave:', error.message);
             }
@@ -1301,30 +1391,30 @@ const setupPokerController = (io) => {
             }
         });
 
-        socket.on('spectatorLeave', ({ tableId }) => {
+        socket.on('spectatorLeave', async ({ tableId }) => { // Made async for consistency
             try {
-                spectatorLeave(io, socket.id, tableId);
+                await spectatorLeave(io, socket.id, tableId);
             } catch (error) {
                 console.error('Error handling spectatorLeave:', error.message);
             }
         });
 
-        socket.on('startGame', ({ tableId }) => {
+        socket.on('startGame', async ({ tableId }) => { // Made async for consistency
             try {
-                startGame(io, tableId);
+                await startGame(io, tableId);
             } catch (error) {
                 console.error('Error handling startGame:', error.message);
             }
         });
 
-        socket.on('playerAction', (data) => {
+        socket.on('playerAction', async (data) => { // Made async for consistency
             try {
                 const { tableId, action, amount } = data;
                 const playerIndex = gameState[tableId]?.players.findIndex(p => p.uid === socket.userId);
                 if (playerIndex === -1 || playerIndex === undefined) {
                     return console.error('Player not found');
                 }
-                handlePlayerAction(io, tableId, playerIndex, action, amount);
+                await handlePlayerAction(io, tableId, playerIndex, action, amount);
             } catch (error) {
                 console.error('Error handling playerAction:', error.message);
             }
@@ -1338,11 +1428,11 @@ const setupPokerController = (io) => {
             }
         });
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', async () => { // Made async for consistency
             try {
                 for (const tableId in gameState) {
                     if (gameState[tableId]) {
-                        playerLeave(io, socket.id, tableId);
+                        await playerLeave(io, socket.id, tableId);
                     }
                 }
             } catch (error) {
@@ -1375,25 +1465,45 @@ const getTableState = async (tableId) => {
 };
 
 const listPokerTables = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
-        const tables = await PokerTable.find();
+        const tables = await PokerTable.find().session(session);
         const tableStates = await Promise.all(tables.map(table => getTableState(table._id)));
+        await session.commitTransaction();
+        session.endSession();
         res.status(200).json(tableStates.filter(state => state !== null));
     } catch (err) {
+        await session.abortTransaction();
+        session.endSession();
         console.error('Failed to fetch tables:', err);
         res.status(500).json({ error: 'Failed to fetch tables' });
     }
 };
 
 const createPokerTable = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const { tableName } = req.body;
+
         const newPokerTable = new PokerTable({ name: tableName });
-        await newPokerTable.save();
+
+        await newPokerTable.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
+
         res.status(201).json(newPokerTable);
     } catch (err) {
+        // Abort the transaction in case of error
+        await session.abortTransaction();
+        session.endSession();
+
+        console.error('Failed to create poker table:', err);
         res.status(500).json({ error: 'Failed to create table' });
     }
 };
+
 
 module.exports = { setupPokerController, createPokerTable, listPokerTables };
