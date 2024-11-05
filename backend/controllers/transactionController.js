@@ -27,10 +27,10 @@ const requestDeposit = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (amount > 10000) {
+    if (amount > 50000) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({ message: 'Deposit amount cannot exceed 10000 BP' });
+      return res.status(400).json({ message: 'Deposit amount cannot exceed 50000 BP' });
     }
 
     const transaction = new Transaction({
