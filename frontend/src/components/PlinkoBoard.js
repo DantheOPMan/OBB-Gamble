@@ -107,7 +107,7 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
             setTimeout(() => setIsButtonDisabled(false), 1000);
 
             for (let i = 0; i < numBalls; i++) {
-                const amountToPlay = Math.min(amount, 25);
+                const amountToPlay = Math.min(amount, 100);
                 onDropBalls(amountToPlay);
                 const { result, multiplier } = await playPlinko(amountToPlay);
                 const targetBuckets = multipliers.reduce((acc, m, index) => {
@@ -423,8 +423,8 @@ const PlinkoBoard = ({ onDropBalls, onBallLanded, balance }) => {
                 <CustomInput
                     type="number"
                     value={amount}
-                    onChange={(e) => setAmount(Math.min(e.target.value, 25))}
-                    inputProps={{ min: 1, max: 25 }}
+                    onChange={(e) => setAmount(Math.min(e.target.value, 100))}
+                    inputProps={{ min: 1, max: 100 }}
                 />
             </CustomFormControl>
             {latestResult && (
