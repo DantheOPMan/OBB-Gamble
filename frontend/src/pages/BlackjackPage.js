@@ -140,12 +140,12 @@ const BlackjackPage = () => {
 
     const handleBetAmountChange = (event) => {
         const value = event.target.value;
-        if (value <= 500) {
+        if (value <= 2000) {
             setBetAmount(value);
             setError('');
         } else { 
-            setBetAmount(500);
-            setError('Bet amount cannot exceed 500.');
+            setBetAmount(2000);
+            setError('Bet amount cannot exceed 2000.');
         }
     };
 
