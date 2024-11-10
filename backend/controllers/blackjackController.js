@@ -100,12 +100,7 @@ const createHand = async (req, res) => {
     session.startTransaction();
 
     const { initialBPCharge } = req.body;
-    
-    if (typeof initialBPCharge !== 'number' || initialBPCharge <= 0) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ message: 'Initial BP charge must be a positive number.' });
-    }
+
     try {
         const userId = req.user._id;
         const existingHand = await BlackjackHand.findOne({ userId, status: 'ongoing' }).session(session);
