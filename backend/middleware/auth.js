@@ -1,28 +1,30 @@
 const admin = require('firebase-admin');
 const User = require('../models/userModel');
 
+const verifyFirebaseToken = async (token) => {
+  if (!token) {
+    throw new Error('No token provided');
+  }
+
+  const decodedToken = await admin.auth().verifyIdToken(token);
+  const user = await User.findOne({ uid: decodedToken.uid });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  return user;
+};
+
 const verifyToken = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
 
-  if (!token) {
-    console.error('No token provided');
-    return res.status(401).json({ message: 'No token provided' });
-  }
-
   try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    
-    const user = await User.findOne({ uid: decodedToken.uid });
-
-    if (!user) {
-      console.error('User not found');
-      return res.status(404).json({ message: 'User not found' });
-    }
-
+    const user = await verifyFirebaseToken(token);
     req.user = user;
     next();
   } catch (err) {
-    console.error('Token verification failed:', err.message);
+    console.error('Authentication error:', err.message);
     res.status(401).json({ message: 'Unauthorized' });
   }
 };
@@ -35,4 +37,4 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { verifyToken, isAdmin };
+module.exports = { verifyFirebaseToken, verifyToken, isAdmin };

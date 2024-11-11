@@ -2,9 +2,9 @@ const RouletteRound = require('../models/rouletteRoundModel');
 const User = require('../models/userModel');
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
+const { verifyFirebaseToken } = require('../middleware/auth');
 
 let currentRound = null;
-let startingRound = false;
 let bettingTimeout = null;
 let outcomeTimeout = null;
 let ioInstance = null;
@@ -14,19 +14,29 @@ const initializeRoulette = (io) => {
   ioInstance = io;
   console.log('Roulette initialized with Socket.io instance.');
 
-  ioInstance.on('connection', async (socket) => {
-    console.log(`New client connected: ${socket.id}`);
+  // Apply authentication middleware
+  ioInstance.use(async (socket, next) => {
+    const token = socket.handshake.auth.token;
 
-    const userId = socket.handshake.query.userId;
-    if (userId) {
-      socket.join(userId);
-      console.log(`User connected: ${userId}`);
+    try {
+      const user = await verifyFirebaseToken(token);
+      socket.user = user; // Attach user to socket instance
+      next();
+    } catch (err) {
+      console.error('Socket authentication error:', err.message);
+      next(new Error('Authentication error'));
     }
+  });
+
+  ioInstance.on('connection', async (socket) => {
+    const userId = socket.user.uid; // Securely obtained from authenticated user
+    socket.join(userId);
+    console.log(`User connected: ${userId}`);
 
     // Send current round info to the newly connected client
     if (currentRound && currentRound.isActive) {
       const bettingDuration = 30000; // 30 seconds
-      const elapsedTime = new Date() - currentRound.startTime;
+      const elapsedTime = Date.now() - currentRound.startTime.getTime();
       const timeRemaining = Math.max(Math.floor((bettingDuration - elapsedTime) / 1000), 0);
 
       socket.emit('rouletteNewRound', {
@@ -43,7 +53,6 @@ const initializeRoulette = (io) => {
     });
   });
 };
-
 
 // Start a new roulette round
 const startNewRound = async (session = null) => {
@@ -349,11 +358,10 @@ const placeBet = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    // Notify all clients about the new bet
     ioInstance.emit('rouletteNewBet', {
       roundId: currentRound.roundId,
       bet,
-      currentBets: currentRound.bets, // Optionally include updated bets
+      currentBets: currentRound.bets,
     });
 
     res.status(200).json({ message: 'Bet placed successfully' });

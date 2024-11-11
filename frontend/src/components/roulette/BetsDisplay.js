@@ -1,5 +1,6 @@
+// src/components/roulette/BetsDisplay.js
 import React from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, List, ListItem, ListItemText } from '@mui/material';
 
 const BetsDisplay = ({ playerBets }) => {
   return (
@@ -8,15 +9,30 @@ const BetsDisplay = ({ playerBets }) => {
       {playerBets.length === 0 ? (
         <Typography>No bets placed yet.</Typography>
       ) : (
-        playerBets.map((bet, index) => (
-          <Typography key={index}>
-            {bet.betType.charAt(0).toUpperCase() + bet.betType.slice(1)}{' '}
-            {Array.isArray(bet.betValue) ? bet.betValue.join(', ') : bet.betValue} - {bet.betAmount} BP
-          </Typography>
-        ))
+        <List>
+          {playerBets.map((bet, index) => (
+            <ListItem key={index}>
+              <ListItemText
+                primary={`${capitalizeBetType(bet.betType)} ${formatBetValue(bet.betValue)} - ${bet.betAmount} BP`}
+              />
+            </ListItem>
+          ))}
+        </List>
       )}
     </Box>
   );
+};
+
+// Helper functions for formatting
+const capitalizeBetType = (betType) => {
+  return betType.charAt(0).toUpperCase() + betType.slice(1);
+};
+
+const formatBetValue = (betValue) => {
+  if (Array.isArray(betValue)) {
+    return betValue.join(', ');
+  }
+  return betValue;
 };
 
 export default BetsDisplay;
