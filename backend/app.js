@@ -10,8 +10,7 @@ const plinkoRoutes = require('./routes/plinkoRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 const blackjackRoutes = require('./routes/blackjackRoutes');
 const { router: pokerTableRoutes, initializeSocket } = require('./routes/pokerTableRoutes');
-const rouletteRoutes = require('./routes/rouletteRoutes');
-const { initializeRoulette } = require('./controllers/rouletteController');
+const { router: rouletteRoutes, initializeRoulette } = require('./routes/rouletteRoutes');
 
 const app = express();
 

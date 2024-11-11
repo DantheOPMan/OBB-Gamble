@@ -224,6 +224,10 @@ const placeRouletteBet = async (betType, betValue, betAmount) => {
   return makeRequest('/api/roulette/place-bet', 'POST', { betType, betValue, betAmount });
 };
 
+const getCurrentRoulette = async () => {
+  return makeRequest('/api/roulette/current-round', 'GET');
+};
+
 export {
   auth,
   provider,
@@ -270,4 +274,5 @@ export {
   joinPokerTable,
   createPokerTable,
   placeRouletteBet,
+  getCurrentRoulette,
 };
