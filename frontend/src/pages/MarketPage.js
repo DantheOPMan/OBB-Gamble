@@ -281,8 +281,8 @@ const MarketPage = () => {
       return;
     }
 
-    if (betAmountNum < 100) {
-      setMessage('The minimum bet amount is 100 BP');
+    if (betAmountNum < 250) {
+      setMessage('The minimum bet amount is 250 BP');
       setOpenToast(true);
       return;
     }
