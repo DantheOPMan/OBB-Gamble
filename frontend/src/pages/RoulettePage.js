@@ -169,7 +169,7 @@ const RoulettePage = () => {
           showSnackbar('Betting is now closed.', 'warning');
         };
 
-        
+
         const handleOutcome = (data) => {
           setWinningNumber(data.winningNumber);
         };
@@ -230,7 +230,7 @@ const RoulettePage = () => {
             socket.off('rouletteNewBet', handleNewBet);
             socket.off('rouletteBettingClosed', handleBettingClosed);
             socket.off('rouletteOutcome', handleOutcome);
-            socket.off('rouletteTotalPayout', handleTotalPayout); 
+            socket.off('rouletteTotalPayout', handleTotalPayout);
             socket.off('rouletteRoundReset', handleRoundReset);
             socket.disconnect();
           }
@@ -322,6 +322,11 @@ const RoulettePage = () => {
 
   return (
     <Container maxWidth="lg">
+      <Box sx={{ marginBottom: 2 }}>
+        <Typography variant="h6">
+          Balance: {userBalance.toLocaleString()} BP
+        </Typography>
+      </Box>
       <Typography variant="h4" gutterBottom>Roulette</Typography>
       {roundInfo === null ? (
         <Typography variant="h6">No active round. Place a bet to start a new round.</Typography>
