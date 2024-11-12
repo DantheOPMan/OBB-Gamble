@@ -192,6 +192,18 @@ const processPayouts = async (round) => {
 
     let roundTotalPayout = 0; // Initialize total payout for the round
 
+    const dozenMappings = {
+      first: [1, 2, 3, 4, 13, 14, 15, 16, 25, 26, 27, 28],
+      second: [5, 6, 7, 8, 17, 18, 19, 20, 29, 30, 31, 32],
+      third: [9, 10, 11, 12, 21, 22, 23, 24, 33, 34, 35, 36],
+    };
+
+    const columnMappings = {
+      first: Array.from({ length: 12 }, (_, i) => i + 1),   // 1-12
+      second: Array.from({ length: 12 }, (_, i) => i + 13), // 13-24
+      third: Array.from({ length: 12 }, (_, i) => i + 25),  // 25-36
+    };
+
     // Process each user's bets
     for (const userId in betsByUser) {
       const userBets = betsByUser[userId];
@@ -242,21 +254,13 @@ const processPayouts = async (round) => {
             }
             break;
           case 'dozen':
-            if (
-              (bet.betValue === 'first' && winningNumber >= 1 && winningNumber <= 12) ||
-              (bet.betValue === 'second' && winningNumber >= 13 && winningNumber <= 24) ||
-              (bet.betValue === 'third' && winningNumber >= 25 && winningNumber <= 36)
-            ) {
+            if (bet.betValue in dozenMappings && dozenMappings[bet.betValue].includes(winningNumber)) {
               won = true;
               payout = bet.betAmount * 2;
             }
             break;
           case 'column':
-            if (
-              (bet.betValue === 'first' && winningNumber !== 0 && winningNumber % 3 === 1) ||
-              (bet.betValue === 'second' && winningNumber % 3 === 2) ||
-              (bet.betValue === 'third' && winningNumber !== 0 && winningNumber % 3 === 0)
-            ) {
+            if (bet.betValue in columnMappings && columnMappings[bet.betValue].includes(winningNumber)) {
               won = true;
               payout = bet.betAmount * 2;
             }
