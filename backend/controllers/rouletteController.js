@@ -86,9 +86,12 @@ const startNewRound = async (session = null) => {
       console.log(`Started new roulette round: ${currentRound.roundId}`);
     }
 
-    // Calculate time remaining based on startTime and betting duration
     const bettingDuration = 30000; // 30 seconds
     const timeRemaining = Math.max(Math.floor((bettingDuration - (Date.now() - currentRound.startTime)) / 1000), 0);
+
+    if (!session) {
+      await localSession.commitTransaction();
+    }
 
     ioInstance.emit('rouletteNewRound', {
       roundId: currentRound.roundId,
@@ -98,9 +101,6 @@ const startNewRound = async (session = null) => {
       timeRemaining,
     });
 
-    if (!session) {
-      await localSession.commitTransaction();
-    }
     if (bettingTimeout) clearTimeout(bettingTimeout);
     bettingTimeout = setTimeout(closeBetting, bettingDuration);
     return currentRound;
@@ -413,7 +413,6 @@ const placeBet = async (req, res) => {
   }
 };
 
-
 const getCurrentRound = async (req, res) => {
   try {
     const currentRound = await RouletteRound.findOne({ isActive: true });
@@ -439,8 +438,13 @@ const getCurrentRound = async (req, res) => {
   }
 };
 const initializeCurrentRound = async () => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
   try {
-    const activeRound = await RouletteRound.findOne({ isActive: true });
+    // Fetch the active round within the session
+    const activeRound = await RouletteRound.findOne({ isActive: true }).session(session);
+    
     if (activeRound) {
       currentRound = activeRound;
       console.log(`Loaded active round: ${currentRound.roundId}`);
@@ -451,17 +455,32 @@ const initializeCurrentRound = async () => {
       const timeRemaining = bettingDuration - elapsedTime;
 
       if (timeRemaining > 0) {
-        bettingTimeout = setTimeout(closeBetting, timeRemaining);
+        bettingTimeout = setTimeout(() => {
+          closeBetting(session);
+        }, timeRemaining);
         console.log(`Betting will close in ${Math.floor(timeRemaining / 1000)} seconds.`);
+      } else if (activeRound.winningNumber === undefined) {
+        // If betting time has passed but outcome hasn't been determined
+        closeBetting(session);
       } else {
-        // If the betting time has already passed, determine the outcome immediately
-        closeBetting();
+        // Outcome already determined, reset the round
+        currentRound = null;
+        ioInstance.emit('rouletteRoundReset', { roundId: null });
+        console.log('Active round has already been processed. Resetting.');
       }
     } else {
       console.log('No active round found. Waiting for the first bet to start a new round.');
     }
+
+    // Commit the transaction if all operations are successful
+    await session.commitTransaction();
   } catch (error) {
+    // If any error occurs, abort the transaction
+    await session.abortTransaction();
     console.error('Error initializing current round:', error);
+  } finally {
+    // End the session
+    session.endSession();
   }
 };
 
