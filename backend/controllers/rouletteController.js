@@ -302,6 +302,18 @@ const processPayouts = async (round) => {
       user.bpBalance += totalPayout;
       await user.save({ session });
 
+      const payoutTransaction = new Transaction({
+        userId: 'rouletteController', 
+        targetUserId: user.uid,
+        amount: totalPayout,
+        marketId: round.roundId, 
+        competitorName: 'RoulettePayout',
+        status: 'approved',
+        discordUsername: user.discordUsername || '',
+        obkUsername: user.obkUsername || '',
+      });
+      await payoutTransaction.save({ session });
+
       // Emit total payout for the user
       ioInstance.to(userId).emit('rouletteTotalPayout', {
         roundId: round.roundId,
@@ -369,6 +381,18 @@ const placeBet = async (req, res) => {
     user.bpBalance -= betAmount;
     await user.save({ session });
     console.log(`Bet placed: Amount: ${betAmount}, Type: ${betType}, Value: ${betValue}`);
+
+    const betTransaction = new Transaction({
+      userId: user.uid,
+      targetUserId: 'rouletteController', 
+      amount: betAmount,
+      marketId: currentRound.roundId, 
+      competitorName: 'RouletteBet',
+      status: 'approved',
+      discordUsername: user.discordUsername || '',
+      obkUsername: user.obkUsername || '',
+    });
+    await betTransaction.save({ session });
 
     // Store the username for convenience
     const username = user.discordUsername || user.obkUsername || user.email;
@@ -573,24 +597,26 @@ const claimRouletteProfits = async (req, res) => {
     for (const admin of adminUsers) {
       // Create a transaction for each admin
       const adminTransaction = new Transaction({
-        userId: admin.uid,
+        userId: 'rouletteController', // Source of funds
+        targetUserId: admin.uid, // Admin's ID
         amount: adminProfitPerUser,
-        marketId: null,
+        marketId: null, // No specific round associated
         competitorName: 'AdminProfitRoulette',
         status: 'approved',
-        discordUsername: admin.discordUsername,
-        obkUsername: admin.obkUsername,
+        discordUsername: admin.discordUsername || '',
+        obkUsername: admin.obkUsername || '',
       });
+      await adminTransaction.save({ session });
 
       // Update admin's balance
       admin.bpBalance += adminProfitPerUser;
       await admin.save({ session });
-      await adminTransaction.save({ session });
     }
 
     // Create a burn transaction
     const burnTransaction = new Transaction({
-      userId: 'burn',
+      userId: 'rouletteController', // Source of funds
+      targetUserId: 'burn', // Represents the burn
       amount: burnAmount,
       marketId: null,
       competitorName: 'BurnRoulette',
@@ -599,6 +625,9 @@ const claimRouletteProfits = async (req, res) => {
       obkUsername: 'Burn',
     });
     await burnTransaction.save({ session });
+
+    // Create a transaction for net profits after burn (if needed)
+    // This depends on how you want to track net profits in your system
 
     await session.commitTransaction();
     session.endSession();
