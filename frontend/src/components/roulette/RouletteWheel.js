@@ -1,34 +1,66 @@
-import React from 'react';
+// src/components/roulette/RouletteWheel.js
+
+import React, { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
+import PropTypes from 'prop-types';
+import { motion, useAnimation } from 'framer-motion';
 
 const RouletteWheel = ({ wheelRotation, winningNumber }) => {
-  const generateWheelNumbers = () => {
-    const numberPositions = [
-      0, 32, 15, 19, 4, 21, 2, 25,
-      17, 34, 6, 27, 13, 36, 11, 30,
-      8, 23, 10, 5, 24, 16, 33, 1,
-      20, 14, 31, 9, 22, 18, 29, 7,
-      28, 12, 35, 3, 26
-    ]; // Standard European wheel
+  const [currentWheelRotation, setCurrentWheelRotation] = useState(wheelRotation);
+  const [isRolling, setIsRolling] = useState(false);
 
+  // Framer Motion controls
+  const wheelControls = useAnimation();
+
+  const numberPositions = [
+    0, 32, 15, 19, 4, 21, 2, 25,
+    17, 34, 6, 27, 13, 36, 11, 30,
+    8, 23, 10, 5, 24, 16, 33, 1,
+    20, 14, 31, 9, 22, 18, 29, 7,
+    28, 12, 35, 3, 26
+  ]; // Standard European wheel
+
+  const numberColors = {
+    0: '#388E3C', // Green
+    red: '#D32F2F',
+    black: '#424242',
+  };
+
+  const degreePerSection = 360 / numberPositions.length; // ≈9.7297 degrees
+
+  // Determine the color of each number
+  const getNumberColor = (number) => {
+    if (number === 0) return numberColors[0];
+    const redNumbers = [32, 19, 21, 25, 34, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3];
+    return redNumbers.includes(number) ? numberColors.red : numberColors.black;
+  };
+
+  // Generate Wheel Numbers Rotating with the Wheel
+  const generateWheelNumbers = () => {
     return numberPositions.map((number, index) => {
-      const angle = (360 / 37) * index;
-      const isRed = [32, 19, 21, 25, 34, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3].includes(number);
-      const isGreen = number === 0;
+      // Adjust the angle by adding half the section to center the number
+      const angle = (degreePerSection * index) + (degreePerSection / 2);
+      const color = getNumberColor(number);
 
       return (
         <Box
           key={number}
           sx={{
             position: 'absolute',
-            transform: `rotate(${angle}deg) translate(0, -130px) rotate(${-angle}deg)`,
+            transform: `rotate(${angle}deg) translate(0, -200px)`, // Position numbers around the wheel
             transformOrigin: 'center center',
-            color: isGreen ? '#388E3C' : isRed ? '#D32F2F' : '#424242',
+            color: color,
             fontSize: '14px',
             fontWeight: 'bold',
             textAlign: 'center',
-            width: '24px',
-            marginLeft: '-12px', // Half of width to center align
+            width: '25px',
+            height: '25px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+            borderRadius: '50%',
+            boxShadow: '0 0 3px rgba(0,0,0,0.3)',
           }}
         >
           {number}
@@ -37,94 +69,119 @@ const RouletteWheel = ({ wheelRotation, winningNumber }) => {
     });
   };
 
+  // Dynamically create the conic-gradient for equal sections
+  const generateConicGradient = () => {
+    let gradient = '';
+    numberPositions.forEach((number, index) => {
+      const color = getNumberColor(number);
+      const startDegree = degreePerSection * index;
+      const endDegree = degreePerSection * (index + 1);
+      gradient += `${color} ${startDegree}deg ${endDegree}deg, `;
+    });
+    // Remove the trailing comma and space
+    return `conic-gradient(${gradient.slice(0, -2)})`;
+  };
+
+  // Handle Wheel Rotation on Winning Number
+  useEffect(() => {
+    if (winningNumber !== null) {
+      setIsRolling(true);
+
+      // Calculate wheel rotation to land on the winning number
+      const index = numberPositions.indexOf(winningNumber);
+      // Ensure index is valid
+      if (index === -1) return;
+
+      // Calculate stopAngle for clockwise rotation (Wheel)
+      // To align the winning number to the top, subtract its angle from a full rotation
+      const rotationOffset = degreePerSection * index + degreePerSection / 2;
+      const wheelStopAngle = 360 * 5 - rotationOffset; // 5 full rotations plus the offset
+
+      // Start animation
+      wheelControls.start({
+        rotate: wheelStopAngle,
+        transition: { duration: 5, ease: [0.25, 0.1, 0.25, 1] },
+      });
+
+      // Update state
+      setCurrentWheelRotation(wheelStopAngle);
+    }
+  }, [winningNumber, numberPositions, degreePerSection, wheelControls]);
+
+  // Reset rolling state after animation completes
+  useEffect(() => {
+    if (isRolling) {
+      const timer = setTimeout(() => {
+        setIsRolling(false);
+      }, 5000); // Duration matches the animation duration
+      return () => clearTimeout(timer);
+    }
+  }, [isRolling]);
+
   return (
     <Box
       sx={{
-        width: '300px',
-        height: '300px',
-        borderRadius: '50%',
-        border: '10px solid #8B4513', // Brown border to resemble wood
-        backgroundImage: `conic-gradient(
-          from 0deg,
-          #388E3C 0deg 9.7297297297deg,
-          #D32F2F 9.7297297297deg 19.4594594595deg,
-          #424242 19.4594594595deg 29.1891891892deg,
-          #D32F2F 29.1891891892deg 38.9189189189deg,
-          #424242 38.9189189189deg 48.6486486486deg,
-          #D32F2F 48.6486486486deg 58.3783783784deg,
-          #424242 58.3783786486deg 68.1081081081deg,
-          #D32F2F 68.1081081081deg 77.8378378378deg,
-          #424242 77.8378378378deg 87.5675675676deg,
-          #D32F2F 87.5675675676deg 97.2972972973deg,
-          #424242 97.2972972973deg 107.027027027deg,
-          #D32F2F 107.027027027deg 116.756756757deg,
-          #424242 116.756756757deg 126.486486486deg,
-          #D32F2F 126.486486486deg 136.216216216deg,
-          #424242 136.216216216deg 145.945945946deg,
-          #D32F2F 145.945945946deg 155.675675676deg,
-          #424242 155.675675676deg 165.405405405deg,
-          #D32F2F 165.405405405deg 175.135135135deg,
-          #424242 175.135135135deg 184.864864865deg,
-          #D32F2F 184.864864865deg 194.594594595deg,
-          #424242 194.594594595deg 204.324324324deg,
-          #D32F2F 204.324324324deg 214.054054054deg,
-          #424242 214.054054054deg 223.783783784deg,
-          #D32F2F 223.783783784deg 233.513513514deg,
-          #424242 233.513513514deg 243.243243243deg,
-          #D32F2F 243.243243243deg 252.972972973deg,
-          #424242 252.972972973deg 262.702702703deg,
-          #D32F2F 262.702702703deg 272.432432432deg,
-          #424242 272.432432432deg 282.162162162deg,
-          #D32F2F 282.162162162deg 291.891891892deg,
-          #424242 291.891891892deg 301.621621622deg,
-          #D32F2F 301.621621622deg 311.351351351deg,
-          #424242 311.351351351deg 321.081081081deg,
-          #D32F2F 321.081081081deg 330.810810811deg,
-          #424242 330.810810811deg 340.540540541deg,
-          #D32F2F 340.540540541deg 350.27027027deg,
-          #388E3C 350.27027027deg 360deg
-        )`,
-        marginLeft: 2,
-        position: 'relative',
-        overflow: 'hidden',
-        transform: `rotate(${wheelRotation}deg)`,
-        transition: winningNumber !== null ? 'transform 10s cubic-bezier(0.25, 0.1, 0.25, 1)' : 'none',
-    }}
+        position: 'relative', // Parent container for absolute positioning
+        width: '450px',
+        height: '450px',
+        margin: '20px auto',
+      }}
     >
-      {/* Ball Indicator */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -140px)',
-          width: '10px',
-          height: '10px',
-          backgroundColor: 'white',
+      {/* Wheel Container */}
+      <motion.div
+        animate={wheelControls}
+        style={{
+          width: '100%',
+          height: '100%',
           borderRadius: '50%',
-          zIndex: 1,
-        }}
-      ></Box>
-      {/* Wheel Numbers */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '280px',
-          height: '280px',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          border: '8px solid #8B4513',
+          backgroundImage: generateConicGradient(),
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: '0 0 10px rgba(0,0,0,0.5)',
         }}
       >
-        {generateWheelNumbers()}
-      </Box>
+        {/* Wheel Numbers */}
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '400px',
+            height: '400px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {generateWheelNumbers()}
+        </Box>
+      </motion.div>
+
+      {/* Fixed Ball Position */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: '50%', // Center vertically
+          left: '50%',
+          transform: 'translate(-50%, -188px)', // Move up by 220px from the center
+          width: '20px',
+          height: '20px',
+          backgroundColor: 'yellow',
+          borderRadius: '50%',
+          boxShadow: '0 0 5px rgba(0,0,0,0.5)',
+          zIndex: 3,
+        }}
+      ></Box>
     </Box>
   );
 };
 
-export default RouletteWheel;
+RouletteWheel.propTypes = {
+  wheelRotation: PropTypes.number.isRequired,
+  winningNumber: PropTypes.number,
+};
 
+export default RouletteWheel;

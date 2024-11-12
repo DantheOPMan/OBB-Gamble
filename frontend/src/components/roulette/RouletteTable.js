@@ -1,13 +1,22 @@
 import React from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box } from '@mui/material';
 
-const RouletteTable = ({ handleBetClick, renderTotalBet, renderPlayerBet }) => {
+const RouletteTable = ({ handleBetClick }) => {
   const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
   const blackNumbers = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
 
   const cellWidth = 50;
   const cellHeight = 60;
   const cells = [];
+
+  // Common hover styles
+  const hoverStyles = {
+    '&:hover': {
+      transform: 'scale(1.05)',
+      boxShadow: '0 0 10px rgba(255, 255, 255, 0.7)',
+    },
+    transition: 'transform 0.2s, box-shadow 0.2s',
+  };
 
   // Left column with 0
   cells.push(
@@ -26,34 +35,12 @@ const RouletteTable = ({ handleBetClick, renderTotalBet, renderPlayerBet }) => {
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
+        zIndex: 2,
+        ...hoverStyles,
       }}
       onClick={() => handleBetClick('number', 0)}
     >
       0
-      {/* Display total bets */}
-      {renderTotalBet('number', 0) && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: '5px',
-            left: '5px',
-            backgroundColor: 'rgba(0, 0, 255, 0.7)', // Semi-transparent blue
-            color: 'white',
-            borderRadius: '50%',
-            width: '24px',
-            height: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '12px',
-            zIndex: 1,
-          }}
-        >
-          {renderTotalBet('number', 0)}
-        </Box>
-      )}
-      {/* Display player's own bet */}
-      {renderPlayerBet('number', 0)}
     </Box>
   );
 
@@ -79,34 +66,12 @@ const RouletteTable = ({ handleBetClick, renderTotalBet, renderPlayerBet }) => {
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
+            zIndex: 1,
+            ...hoverStyles,
           }}
           onClick={() => handleBetClick('number', number)}
         >
           {number}
-          {/* Display total bets */}
-          {renderTotalBet('number', number) && (
-            <Box
-              sx={{
-                position: 'absolute',
-                top: '5px',
-                left: '5px',
-                backgroundColor: 'rgba(0, 0, 255, 0.7)', // Semi-transparent blue
-                color: 'white',
-                borderRadius: '50%',
-                width: '24px',
-                height: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '12px',
-                zIndex: 1,
-              }}
-            >
-              {renderTotalBet('number', number)}
-            </Box>
-          )}
-          {/* Display player's own bet */}
-          {renderPlayerBet('number', number)}
         </Box>
       );
 
@@ -124,11 +89,14 @@ const RouletteTable = ({ handleBetClick, renderTotalBet, renderPlayerBet }) => {
               height: '10px',
               cursor: 'pointer',
               backgroundColor: 'transparent',
+              zIndex: 3, // Higher z-index to capture hover
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              },
+              transition: 'background-color 0.2s',
             }}
             onClick={() => handleBetClick('split', betValue)}
-          >
-            {/* Split indicator (optional visual representation) */}
-          </Box>
+          />
         );
       }
 
@@ -146,11 +114,14 @@ const RouletteTable = ({ handleBetClick, renderTotalBet, renderPlayerBet }) => {
               height: `${cellHeight}px`,
               cursor: 'pointer',
               backgroundColor: 'transparent',
+              zIndex: 3, // Higher z-index to capture hover
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              },
+              transition: 'background-color 0.2s',
             }}
             onClick={() => handleBetClick('split', betValue)}
-          >
-            {/* Split indicator (optional visual representation) */}
-          </Box>
+          />
         );
       }
 
@@ -168,11 +139,14 @@ const RouletteTable = ({ handleBetClick, renderTotalBet, renderPlayerBet }) => {
               height: '10px',
               cursor: 'pointer',
               backgroundColor: 'transparent',
+              zIndex: 4, // Highest z-index to capture hover
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              },
+              transition: 'background-color 0.2s',
             }}
             onClick={() => handleBetClick('corner', betValue)}
-          >
-            {/* Corner indicator (optional visual representation) */}
-          </Box>
+          />
         );
       }
     }
@@ -202,21 +176,21 @@ const RouletteTable = ({ handleBetClick, renderTotalBet, renderPlayerBet }) => {
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
+          zIndex: 2,
+          ...hoverStyles,
         }}
         onClick={() => handleBetClick(option.betType, option.betValue)}
       >
         {option.label}
-        {/* Display player's own bet */}
-        {renderPlayerBet(option.betType, option.betValue)}
       </Box>
     );
   });
 
   // Side betting options (Columns)
   const sideColumns = [
-    { label: '2 to 1', betType: 'column', betValue: 'first', top: 0 },
-    { label: '2 to 1', betType: 'column', betValue: 'second', top: cellHeight },
-    { label: '2 to 1', betType: 'column', betValue: 'third', top: cellHeight * 2 },
+    { label: '1st Column', betType: 'column', betValue: 'first', top: 0 },
+    { label: '2nd Column', betType: 'column', betValue: 'second', top: cellHeight },
+    { label: '3rd Column', betType: 'column', betValue: 'third', top: cellHeight * 2 },
   ];
 
   sideColumns.forEach((option, index) => {
@@ -226,7 +200,7 @@ const RouletteTable = ({ handleBetClick, renderTotalBet, renderPlayerBet }) => {
         sx={{
           position: 'absolute',
           top: `${option.top}px`,
-          left: `${(cellWidth * 13)}px`,
+          left: `${cellWidth * 13}px`,
           width: `${cellWidth}px`,
           height: `${cellHeight}px`,
           border: '1px solid white',
@@ -236,12 +210,12 @@ const RouletteTable = ({ handleBetClick, renderTotalBet, renderPlayerBet }) => {
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
+          zIndex: 2,
+          ...hoverStyles,
         }}
         onClick={() => handleBetClick(option.betType, option.betValue)}
       >
         {option.label}
-        {/* Display player's own bet */}
-        {renderPlayerBet(option.betType, option.betValue)}
       </Box>
     );
   });
@@ -273,12 +247,12 @@ const RouletteTable = ({ handleBetClick, renderTotalBet, renderPlayerBet }) => {
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
+          zIndex: 2,
+          ...hoverStyles,
         }}
         onClick={() => handleBetClick(option.betType, option.betValue)}
       >
         {option.label}
-        {/* Display player's own bet */}
-        {renderPlayerBet(option.betType, option.betValue)}
       </Box>
     );
   });
@@ -291,6 +265,9 @@ const RouletteTable = ({ handleBetClick, renderTotalBet, renderPlayerBet }) => {
         height: `${cellHeight * 4}px`,
         backgroundColor: 'green',
         margin: '0 auto',
+        border: '3px solid #1B5E20', // Darker green border
+        borderRadius: '10px',
+        boxShadow: '0 0 15px rgba(0, 0, 0, 0.5)',
       }}
     >
       {cells}

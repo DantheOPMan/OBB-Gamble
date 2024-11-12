@@ -1,7 +1,7 @@
-// src/pages/RoulettePage.js
 import React, { useEffect, useState } from 'react';
-import { Container, Typography, Box, Snackbar, Alert, Modal, Fade, Backdrop } from '@mui/material';
-import { initializeSocket, getSocket } from '../socket'; // Import the socket module
+import { Container, Typography, Box, Snackbar, Alert, Modal, Fade, Backdrop, IconButton } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
+import { initializeSocket } from '../socket'; // Import the socket module
 import { placeRouletteBet, auth, getUser, getCurrentRoulette } from '../firebase';
 import RouletteWheel from '../components/roulette/RouletteWheel.js';
 import RouletteTable from '../components/roulette/RouletteTable';
@@ -30,6 +30,10 @@ const RoulettePage = () => {
   // Outcome Popup state
   const [outcomePopupOpen, setOutcomePopupOpen] = useState(false);
   const [outcomeMessage, setOutcomeMessage] = useState('');
+
+  // **Remove references to betResultsRef and outcomeTimerSetRef**
+  // const betResultsRef = useRef([]);
+  // const outcomeTimerSetRef = useRef(false);
 
   // Function to show Snackbar
   const showSnackbar = (message, severity = 'info') => {
@@ -127,6 +131,7 @@ const RoulettePage = () => {
 
         const handleNewRound = (data) => {
           setRoundInfo(data);
+          console.log("handle new round");
           setBets(data.bets);
           const userSpecificBets = data.bets.filter(bet => bet.userId === userId);
           setPlayerBets(userSpecificBets);
@@ -139,6 +144,10 @@ const RoulettePage = () => {
           // Automatically close the outcome popup when a new round starts
           setOutcomePopupOpen(false);
           setOutcomeMessage('');
+
+          // **Remove references to betResultsRef and outcomeTimerSetRef**
+          // betResultsRef.current = [];
+          // outcomeTimerSetRef.current = false;
         };
 
         const handleNewBet = (data) => {
@@ -160,27 +169,29 @@ const RoulettePage = () => {
           showSnackbar('Betting is now closed.', 'warning');
         };
 
+        
         const handleOutcome = (data) => {
           setWinningNumber(data.winningNumber);
-          fetchUserBalance();
-          showSnackbar(`The winning number is ${data.winningNumber}!`, 'info');
         };
 
-        const handleBetResult = (data) => {
-          if (data.roundId === roundInfo?.roundId) {
-            setUserBalance(data.newBalance);
-            if (data.won) {
-              showSnackbar(`You won ${data.payout} BP!`, 'success');
-              setOutcomeMessage(`Congratulations! You won ${data.payout} BP!`);
-            } else {
-              showSnackbar('You lost your bet.', 'error');
-              setOutcomeMessage('Sorry, you lost your bet.');
-            }
-            setOutcomePopupOpen(true);
+        const handleTotalPayout = (data) => {
+          console.log("payout reset");
+
+          if (data.totalPayout > 0) {
+            setOutcomeMessage(`Congratulations! You won ${data.totalPayout} BP!`);
+          } else {
+            setOutcomeMessage('Sorry, you lost everything.');
           }
+          setOutcomePopupOpen(true);
+
+          // **Keep the popup open for at least 5 seconds**
+          setTimeout(() => {
+            setOutcomePopupOpen(false);
+          }, 10000);
         };
 
         const handleRoundReset = (data) => {
+          console.log("round reset");
           setRoundInfo(null);
           setBets([]);
           setPlayerBets([]);
@@ -190,6 +201,10 @@ const RoulettePage = () => {
           setWheelRotation(0);
           setClosedTimeRemaining(0);
           showSnackbar('Round has been reset.', 'info');
+
+          // **Ensure that outcome references are reset**
+          // betResultsRef.current = [];
+          // outcomeTimerSetRef.current = false;
         };
 
         // Event listeners
@@ -198,7 +213,7 @@ const RoulettePage = () => {
         socket.on('rouletteNewBet', handleNewBet);
         socket.on('rouletteBettingClosed', handleBettingClosed);
         socket.on('rouletteOutcome', handleOutcome);
-        socket.on('rouletteBetResult', handleBetResult);
+        socket.on('rouletteTotalPayout', handleTotalPayout);
         socket.on('rouletteRoundReset', handleRoundReset);
 
         // Handle connection errors
@@ -215,9 +230,9 @@ const RoulettePage = () => {
             socket.off('rouletteNewBet', handleNewBet);
             socket.off('rouletteBettingClosed', handleBettingClosed);
             socket.off('rouletteOutcome', handleOutcome);
-            socket.off('rouletteBetResult', handleBetResult);
+            socket.off('rouletteTotalPayout', handleTotalPayout); 
             socket.off('rouletteRoundReset', handleRoundReset);
-            // Do not disconnect the socket here if it's used globally
+            socket.disconnect();
           }
         };
       } catch (error) {
@@ -414,13 +429,29 @@ const RoulettePage = () => {
               left: '50%',
               transform: 'translate(-50%, -50%)',
               width: 300,
-              bgcolor: 'background.paper',
-              border: '2px solid #000',
+              bgcolor: '#333', // Dark gray background
+              border: '2px solid #444', // Dark gray border
               boxShadow: 24,
               p: 4,
               textAlign: 'center',
+              color: '#fff', // White text
+              borderRadius: 2, // Optional: rounded corners for better aesthetics
             }}
           >
+            {/* Close Button */}
+            <IconButton
+              aria-label="close"
+              onClick={() => setOutcomePopupOpen(false)}
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                color: '#fff',
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+
             <Typography id="outcome-popup-title" variant="h6" component="h2">
               Round Result
             </Typography>
