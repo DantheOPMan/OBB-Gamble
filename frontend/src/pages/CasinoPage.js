@@ -64,6 +64,19 @@ const CasinoPage = () => {
           >
             Poker
           </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            component={Link}
+            to="/casino/roulette"
+            sx={{
+              padding: '10px 20px',
+              fontSize: '18px',
+              minWidth: '200px',
+            }}
+          >
+            Roulette
+          </Button>
           {/* Add more games here */}
         </Box>
       </Box>
