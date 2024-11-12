@@ -384,7 +384,7 @@ const StatsPage = () => {
           <Card sx={{ bgcolor: '#616161', color: 'white' }}>
             <CardContent>
               <Typography variant="h6" component="div">
-                Total Bets
+                Total Wagered
               </Typography>
               <Typography variant="body1">
                 {rouletteStats.totalBets}
