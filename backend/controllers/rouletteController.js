@@ -381,17 +381,17 @@ const placeBet = async (req, res) => {
       betValue,
     };
 
-    // Atomically add the bet to the current round within the session
+    // Atomically add the bet to the current round in both database and in-memory
     await RouletteRound.findOneAndUpdate(
       { _id: currentRound._id },
       { $push: { bets: bet } },
-      { session }
-    );
+      { session, new: true } // new: true returns the updated document
+    ).then(updatedRound => {
+      if (updatedRound && updatedRound.isActive) {
+        currentRound = updatedRound; // Update in-memory with the latest data
+      }
+    });
 
-    // Update the in-memory currentRound.bets
-    if (currentRound && currentRound.isActive) {
-      currentRound.bets.push(bet);
-    }
 
     console.log(`Current roulette round ID: ${currentRound._id}`);
 
