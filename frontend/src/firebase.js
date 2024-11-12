@@ -228,6 +228,14 @@ const getCurrentRoulette = async () => {
   return makeRequest('/api/roulette/current-round', 'GET');
 };
 
+const getRouletteStats = async () => {
+  return makeRequest('/api/roulette/stats', 'GET');
+};
+
+const claimRouletteProfits = async () => {
+  return makeRequest('/api/roulette/claim-profits', 'POST');
+};
+
 export {
   auth,
   provider,
@@ -275,4 +283,6 @@ export {
   createPokerTable,
   placeRouletteBet,
   getCurrentRoulette,
+  getRouletteStats,
+  claimRouletteProfits
 };

@@ -1,4 +1,5 @@
 const RouletteRound = require('../models/rouletteRoundModel');
+const Transaction = require('../models/transactionModel');
 const User = require('../models/userModel');
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
@@ -177,7 +178,6 @@ const determineOutcome = async () => {
 };
 
 
-// Process payouts for the round
 const processPayouts = async (round) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -189,6 +189,8 @@ const processPayouts = async (round) => {
       acc[bet.userId].push(bet);
       return acc;
     }, {});
+
+    let roundTotalPayout = 0; // Initialize total payout for the round
 
     // Process each user's bets
     for (const userId in betsByUser) {
@@ -306,11 +308,22 @@ const processPayouts = async (round) => {
         totalPayout,
         newBalance: user.bpBalance,
       });
-      console.log(user.obkUsername + " total payout: " + totalPayout);
+      console.log(`${user.obkUsername} total payout: ${totalPayout}`);
+
+      // Accumulate total payout for the round
+      roundTotalPayout += totalPayout;
     }
+
+    // Update the round with totalPayout
+    round.totalPayout = roundTotalPayout;
+    await round.save({ session });
 
     await session.commitTransaction();
     session.endSession();
+
+    // Emit round ended event
+    ioInstance.emit('rouletteRoundEnded', { roundId: round.roundId });
+    console.log(`Round ${round.roundId} has been ended and reset.`);
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
@@ -454,8 +467,142 @@ const initializeCurrentRound = async () => {
 
 initializeCurrentRound();
 
+const getRouletteStats = async (req, res) => {
+  try {
+    // Total number of roulette rounds
+    const totalRounds = await RouletteRound.countDocuments();
+
+    // Total amount bet
+    const totalBetsAgg = await RouletteRound.aggregate([
+      { $unwind: '$bets' },
+      { $group: { _id: null, totalBets: { $sum: '$bets.betAmount' } } },
+    ]);
+    const totalBets = totalBetsAgg[0] ? totalBetsAgg[0].totalBets : 0;
+
+    // Total amount returned
+    const totalReturnedAgg = await RouletteRound.aggregate([
+      { $match: { winningNumber: { $exists: true } } },
+      { $group: { _id: null, totalReturned: { $sum: '$totalPayout' } } },
+    ]);
+    const totalReturned = totalReturnedAgg[0] ? totalReturnedAgg[0].totalReturned : 0;
+
+    // Net profit
+    const netAmount = totalBets - totalReturned;
+
+    // Total admin claimed (assuming 'AdminProfitRoulette' transactions are used)
+    const adminClaimedAgg = await Transaction.aggregate([
+      { $match: { competitorName: 'AdminProfitRoulette' } },
+      { $group: { _id: null, totalAdminClaimed: { $sum: '$amount' } } },
+    ]);
+    const totalAdminClaimed = adminClaimedAgg[0] ? adminClaimedAgg[0].totalAdminClaimed : 0;
+
+    res.status(200).json({
+      totalRounds,
+      totalBets,
+      totalReturned: totalReturned.toFixed(1),
+      netAmount: netAmount.toFixed(1),
+      totalAdminClaimed: totalAdminClaimed.toFixed(1),
+    });
+  } catch (error) {
+    console.error('Error fetching roulette stats:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Function to claim Roulette Profits
+const claimRouletteProfits = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // Calculate total bets and total payouts
+    const totalBetsAgg = await RouletteRound.aggregate([
+      { $unwind: '$bets' },
+      { $group: { _id: null, totalBets: { $sum: '$bets.betAmount' } } },
+    ]);
+    const totalBets = totalBetsAgg[0] ? totalBetsAgg[0].totalBets : 0;
+
+    const totalReturnedAgg = await RouletteRound.aggregate([
+      { $match: { winningNumber: { $exists: true } } },
+      { $group: { _id: null, totalReturned: { $sum: '$totalPayout' } } },
+    ]);
+    const totalReturned = totalReturnedAgg[0] ? totalReturnedAgg[0].totalReturned : 0;
+
+    const netProfits = totalBets - totalReturned;
+
+    if (netProfits <= 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'No profits to claim' });
+    }
+
+    // Calculate burn amount and net profits after burn
+    const burnAmount = netProfits * 0.2;
+    const netProfitsAfterBurn = netProfits - burnAmount;
+
+    // Get all admin users
+    const adminUsers = await User.find({ role: 'admin' }).session(session);
+    if (adminUsers.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'No admin users found to distribute profits' });
+    }
+
+    const adminProfitPerUser = netProfitsAfterBurn / adminUsers.length;
+
+    // Distribute profits to admin users
+    for (const admin of adminUsers) {
+      // Create a transaction for each admin
+      const adminTransaction = new Transaction({
+        userId: admin.uid,
+        amount: adminProfitPerUser,
+        marketId: null,
+        competitorName: 'AdminProfitRoulette',
+        status: 'approved',
+        discordUsername: admin.discordUsername,
+        obkUsername: admin.obkUsername,
+      });
+
+      // Update admin's balance
+      admin.bpBalance += adminProfitPerUser;
+      await admin.save({ session });
+      await adminTransaction.save({ session });
+    }
+
+    // Create a burn transaction
+    const burnTransaction = new Transaction({
+      userId: 'burn',
+      amount: burnAmount,
+      marketId: null,
+      competitorName: 'BurnRoulette',
+      status: 'approved',
+      discordUsername: 'Burn',
+      obkUsername: 'Burn',
+    });
+    await burnTransaction.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({
+      message: 'Roulette profits claimed successfully',
+      netProfits: netProfits.toFixed(1),
+      burnAmount: burnAmount.toFixed(1),
+      netProfitsAfterBurn: netProfitsAfterBurn.toFixed(1),
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error('Error claiming roulette profits:', error.message);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
 module.exports = {
   initializeRoulette,
   placeBet,
   getCurrentRound,
+  getRouletteStats,
+  claimRouletteProfits,
 };

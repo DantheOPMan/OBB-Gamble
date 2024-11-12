@@ -15,6 +15,7 @@ const rouletteRoundSchema = new mongoose.Schema({
   winningNumber: { type: Number },
   outcomeTime: { type: Date },
   isActive: { type: Boolean, default: true },
+  totalPayout: { type: Number, default: 0 },
 });
 
 module.exports = mongoose.model('RouletteRound', rouletteRoundSchema);
