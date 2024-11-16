@@ -307,10 +307,10 @@ const processPayouts = async (round) => {
       await user.save({ session });
 
       const payoutTransaction = new Transaction({
-        userId: 'rouletteController', 
+        userId: 'rouletteController',
         targetUserId: user.uid,
         amount: totalPayout,
-        marketId: round._id, 
+        marketId: round._id,
         competitorName: 'RoulettePayout',
         status: 'approved',
         discordUsername: user.discordUsername || '',
@@ -388,9 +388,9 @@ const placeBet = async (req, res) => {
 
     const betTransaction = new Transaction({
       userId: user.uid,
-      targetUserId: 'rouletteController', 
+      targetUserId: 'rouletteController',
       amount: betAmount,
-      marketId: currentRound._id, 
+      marketId: currentRound._id,
       competitorName: 'RouletteBet',
       status: 'approved',
       discordUsername: user.discordUsername || '',
@@ -468,11 +468,11 @@ const getCurrentRound = async (req, res) => {
 const initializeCurrentRound = async () => {
   const session = await mongoose.startSession();
   session.startTransaction();
-  
+
   try {
     // Fetch the active round within the session
     const activeRound = await RouletteRound.findOne({ isActive: true }).session(session);
-    
+
     if (activeRound) {
       currentRound = activeRound;
       console.log(`Loaded active round: ${currentRound.roundId}`);
@@ -538,7 +538,11 @@ const getRouletteStats = async (req, res) => {
 
     // Total admin claimed (assuming 'AdminProfitRoulette' transactions are used)
     const adminClaimedAgg = await Transaction.aggregate([
-      { $match: { competitorName: 'AdminProfitRoulette' } },
+      {
+        $match: {
+          competitorName: { $in: ['AdminProfitRoulette', 'BurnRoulette'] },
+        },
+      },
       { $group: { _id: null, totalAdminClaimed: { $sum: '$amount' } } },
     ]);
     const totalAdminClaimed = adminClaimedAgg[0] ? adminClaimedAgg[0].totalAdminClaimed : 0;
@@ -583,9 +587,35 @@ const claimRouletteProfits = async (req, res) => {
       return res.status(400).json({ message: 'No profits to claim' });
     }
 
+    const adminAndBurnClaimedAgg = await Transaction.aggregate([
+      {
+        $match: {
+          competitorName: { $in: ['AdminProfitRoulette', 'BurnRoulette'] },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalAdminAndBurnClaimed: { $sum: '$amount' },
+        },
+      },
+    ]);
+    const totalAdminAndBurnClaimed = adminAndBurnClaimedAgg[0]
+      ? adminAndBurnClaimedAgg[0].totalAdminAndBurnClaimed
+      : 0;
+
+    // 3. Calculate unclaimed profits
+    const unclaimedProfits = netProfits - totalAdminAndBurnClaimed;
+
+    if (unclaimedProfits <= 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'No new profits to claim' });
+    }
+
     // Calculate burn amount and net profits after burn
-    const burnAmount = netProfits * 0.2;
-    const netProfitsAfterBurn = netProfits - burnAmount;
+    const burnAmount = unclaimedProfits * 0.2;
+    const netProfitsAfterBurn = unclaimedProfits - burnAmount;
 
     // Get all admin users
     const adminUsers = await User.find({ role: 'admin' }).session(session);

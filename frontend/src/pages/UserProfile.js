@@ -39,6 +39,14 @@ const UserProfile = () => {
   const [obkUsername, setObkUsername] = useState('');
   const [userStats, setUserStats] = useState(null);
 
+  // Define roulette-related competitor names
+  const rouletteCompetitors = [
+    'AdminProfitRoulette',
+    'BurnRoulette',
+    'RoulettePayout',
+    'RouletteBet',
+  ];
+
   useEffect(() => {
     const currentUser = auth.currentUser;
 
@@ -52,13 +60,23 @@ const UserProfile = () => {
           setObkUsername(data.obkUsername || '');
 
           // Fetch user transactions
-          const transactionsData = await fetchUserTransactions(currentUser.uid);
+          let transactionsData = await fetchUserTransactions(currentUser.uid);
+
+          // Filter out roulette transactions
+          transactionsData = transactionsData.filter(
+            (transaction) => !rouletteCompetitors.includes(transaction.competitorName)
+          );
+
           setTransactions(transactionsData);
 
           // Fetch target users for transactions
           const targetUsersData = {};
           for (const transaction of transactionsData) {
-            if (transaction.targetUserId && !targetUsersData[transaction.targetUserId]) {
+            if (
+              transaction.targetUserId &&
+              !targetUsersData[transaction.targetUserId] &&
+              transaction.targetUserId !== 'burn' // Exclude 'burn' target if necessary
+            ) {
               const targetUserData = await getUser(transaction.targetUserId);
               if (targetUserData) {
                 targetUsersData[transaction.targetUserId] = targetUserData;
