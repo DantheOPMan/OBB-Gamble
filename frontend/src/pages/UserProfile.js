@@ -41,7 +41,7 @@ const UserProfile = () => {
 
   // Define roulette-related competitor names
   const rouletteCompetitors = [
-    'AdminProfitRoulette',
+    //'AdminProfitRoulette',
     'BurnRoulette',
     'RoulettePayout',
     'RouletteBet',
