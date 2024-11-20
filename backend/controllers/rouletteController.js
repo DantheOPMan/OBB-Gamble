@@ -122,17 +122,23 @@ const closeBetting = async () => {
   if (!currentRound || isClosing) return;
   isClosing = true;
 
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     currentRound.isActive = false;
-    await currentRound.save();
+    await currentRound.save({ session });
     clearTimeout(bettingTimeout);
 
     ioInstance.emit('rouletteBettingClosed', { roundId: currentRound.roundId });
 
-    await determineOutcome();
+    await determineOutcome(session); // Pass session if determineOutcome needs it
+    await session.commitTransaction();
   } catch (error) {
+    await session.abortTransaction();
     console.error('Error in closeBetting:', error);
   } finally {
+    session.endSession();
     isClosing = false;
   }
 };
@@ -484,7 +490,7 @@ const initializeCurrentRound = async () => {
 
       if (timeRemaining > 0) {
         bettingTimeout = setTimeout(() => {
-          closeBetting(session);
+          closeBetting();
         }, timeRemaining);
         console.log(`Betting will close in ${Math.floor(timeRemaining / 1000)} seconds.`);
       } else if (activeRound.winningNumber === undefined) {
